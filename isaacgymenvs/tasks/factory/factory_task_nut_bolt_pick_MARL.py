@@ -129,6 +129,7 @@ class FactoryTaskNutBoltPick_MARL(FactoryEnvNutBolt_MARL, FactoryABCTask):
             self.reset_idx(env_ids)
 
         self.actions = actions.clone().to(self.device)  # shape = (num_envs, num_actions); values = [-1, 1]
+        print(self.actions.shape)
 
         self._apply_actions_as_ctrl_targets(actions=self.actions,
                                             ctrl_target_gripper_dof_pos=self.asset_info_franka_table.franka_gripper_width_max,
@@ -329,6 +330,9 @@ class FactoryTaskNutBoltPick_MARL(FactoryEnvNutBolt_MARL, FactoryABCTask):
         self.gym.viewer_camera_look_at(self.viewer, None, cam_pos, cam_target)
 
     def _apply_actions_as_ctrl_targets(self, actions, ctrl_target_gripper_dof_pos, do_scale):
+        # Need pos_actions1
+        # pos_actions2
+
         """Apply actions from policy as position/rotation targets."""
 
         # Interpret actions as target pos displacements and set pos target
@@ -395,7 +399,7 @@ class FactoryTaskNutBoltPick_MARL(FactoryEnvNutBolt_MARL, FactoryABCTask):
     def _move_gripper_to_dof_pos(self, gripper_dof_pos, sim_steps=20):
         """Move gripper fingers to specified DOF position using controller."""
 
-        delta_hand_pose = torch.zeros((self.num_envs, self.cfg_task.env.numActions),
+        delta_hand_pose = torch.zeros((self.num_envs, self.cfg_task.env.numActions),  # need delta_hand_pose_2, new pos_error, axis_error_
                                       device=self.device)  # No hand motion
         self._apply_actions_as_ctrl_targets(delta_hand_pose, gripper_dof_pos, do_scale=False)
 
@@ -471,7 +475,7 @@ class FactoryTaskNutBoltPick_MARL(FactoryEnvNutBolt_MARL, FactoryABCTask):
                 rot_error_type='axis_angle')
 
             delta_hand_pose = torch.cat((pos_error, axis_angle_error), dim=-1)
-            actions = torch.zeros((self.num_envs, self.cfg_task.env.numActions), device=self.device)
+            actions = torch.zeros((self.num_envs, self.cfg_task.env.numActions), device=self.device)  # check numActions for dual Franka. numActions is 12, 
             actions[:, :6] = delta_hand_pose
 
             self._apply_actions_as_ctrl_targets(actions=actions,
