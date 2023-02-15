@@ -29,7 +29,7 @@
 """Factory: Class for nut-bolt pick task.
 
 Inherits nut-bolt environment class and abstract task class (not enforced). Can be executed with
-python train.py task=FactoryTaskNutBoltPick_MARL
+python train.py task=FactoryTaskNutBoltPick_MARL2
 """
 
 import hydra
@@ -39,13 +39,13 @@ import torch
 
 from isaacgym import gymapi, gymtorch, torch_utils
 import isaacgymenvs.tasks.factory.factory_control as fc
-from isaacgymenvs.tasks.factory.factory_env_nut_bolt_MARL import FactoryEnvNutBolt_MARL
+from isaacgymenvs.tasks.factory.factory_env_nut_bolt_MARL2 import FactoryEnvNutBolt_MARL2
 from isaacgymenvs.tasks.factory.factory_schema_class_task import FactoryABCTask
 from isaacgymenvs.tasks.factory.factory_schema_config_task import FactorySchemaConfigTask
 from isaacgymenvs.utils import torch_jit_utils
 
 
-class FactoryTaskNutBoltPick_MARL(FactoryEnvNutBolt_MARL, FactoryABCTask):
+class FactoryTaskNutBoltPick_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
 
     def __init__(self, cfg, rl_device, sim_device, graphics_device_id, headless, virtual_screen_capture, force_render):
         """Initialize instance variables. Initialize environment superclass."""
@@ -55,9 +55,9 @@ class FactoryTaskNutBoltPick_MARL(FactoryEnvNutBolt_MARL, FactoryABCTask):
         self.cfg = cfg
         self._get_task_yaml_params()
         self._acquire_task_tensors()
-        self.parse_controller_spec() # defined in factory_base
+        self.parse_controller_spec()
 
-        if self.cfg_task.sim.disable_gravity:  # gravity enabled by default
+        if self.cfg_task.sim.disable_gravity:
             self.disable_gravity()
 
         if self.viewer is not None:
@@ -76,7 +76,7 @@ class FactoryTaskNutBoltPick_MARL(FactoryEnvNutBolt_MARL, FactoryABCTask):
         self.asset_info_nut_bolt = hydra.compose(config_name=asset_info_path)
         self.asset_info_nut_bolt = self.asset_info_nut_bolt['']['']['']['']['']['']['assets']['factory']['yaml']  # strip superfluous nesting
 
-        ppo_path = 'train/FactoryTaskNutBoltPick_MARLPPO.yaml'  # relative to Gym's Hydra search path (cfg dir)
+        ppo_path = 'train/FactoryTaskNutBoltPick_MARL2PPO.yaml'  # relative to Gym's Hydra search path (cfg dir)
         self.cfg_ppo = hydra.compose(config_name=ppo_path)
         self.cfg_ppo = self.cfg_ppo['train']  # strip superfluous nesting
 
@@ -211,54 +211,14 @@ class FactoryTaskNutBoltPick_MARL(FactoryEnvNutBolt_MARL, FactoryABCTask):
 
         self._reset_buffers(env_ids)
 
-    # def _reset_franka(self, env_ids):
-    #     """Reset DOF states and DOF targets of Franka."""
-
-    #     self.dof_pos[env_ids] = torch.cat(
-    #         (torch.tensor(self.cfg_task.randomize.franka_arm_initial_dof_pos, device=self.device),
-    #          torch.tensor([self.asset_info_franka_table.franka_gripper_width_max], device=self.device),
-    #          torch.tensor([self.asset_info_franka_table.franka_gripper_width_max], device=self.device)),
-    #         dim=-1).unsqueeze(0).repeat((self.num_envs, 1))  # shape = (num_envs, num_dofs)
-    #     self.dof_vel[env_ids] = 0.0  # shape = (num_envs, num_dofs)
-    #     self.ctrl_target_dof_pos[env_ids] = self.dof_pos[env_ids]
-
-    #     multi_env_ids_int32 = self.franka_actor_ids_sim[env_ids].flatten()
-    #     self.gym.set_dof_state_tensor_indexed(self.sim,
-    #                                           gymtorch.unwrap_tensor(self.dof_state),
-    #                                           gymtorch.unwrap_tensor(multi_env_ids_int32),
-    #                                           len(multi_env_ids_int32))
-
-
     def _reset_franka(self, env_ids):
         """Reset DOF states and DOF targets of Franka."""
 
-        print("self.dof_pod[env_ids]", self.dof_pos[env_ids].shape)
-
-        # left 18, right 9
-        # right hand side -> 128, 18
-
-         # intiaalize the tensor to [128, 18]
-
-        print(torch.tensor(self.cfg_task.randomize.franka_arm_initial_dof_pos, device=self.device))
-        print(torch.tensor([self.asset_info_franka_table.franka_gripper_width_max], device=self.device))
-        print(torch.tensor([self.asset_info_franka_table.franka_gripper_width_max], device=self.device))
-        print(torch.cat(
+        self.dof_pos[env_ids] = torch.cat(
             (torch.tensor(self.cfg_task.randomize.franka_arm_initial_dof_pos, device=self.device),
              torch.tensor([self.asset_info_franka_table.franka_gripper_width_max], device=self.device),
              torch.tensor([self.asset_info_franka_table.franka_gripper_width_max], device=self.device)),
-            dim=-1))
-
-        self.dof_pos[env_ids] = torch.cat(
-            (torch.tensor(self.cfg_task.randomize.franka_arm_initial_dof_pos, device=self.device),
-            torch.tensor(self.cfg_task.randomize.franka_arm_initial_dof_pos, device=self.device),   # extra line intialization for franka_2
-             torch.tensor([self.asset_info_franka_table.franka_gripper_width_max], device=self.device),
-             torch.tensor([self.asset_info_franka_table.franka_gripper_width_max], device=self.device),
-             torch.tensor([self.asset_info_franka_table.franka_gripper_width_max], device=self.device), # extra initialization franka_2
-             torch.tensor([self.asset_info_franka_table.franka_gripper_width_max], device=self.device)  # extra initialization franka_2
-             ),
             dim=-1).unsqueeze(0).repeat((self.num_envs, 1))  # shape = (num_envs, num_dofs)
-       
-        
         self.dof_vel[env_ids] = 0.0  # shape = (num_envs, num_dofs)
         self.ctrl_target_dof_pos[env_ids] = self.dof_pos[env_ids]
 
@@ -329,76 +289,45 @@ class FactoryTaskNutBoltPick_MARL(FactoryEnvNutBolt_MARL, FactoryABCTask):
         self.gym.viewer_camera_look_at(self.viewer, None, cam_pos, cam_target)
 
     def _apply_actions_as_ctrl_targets(self, actions, ctrl_target_gripper_dof_pos, do_scale):
-        # Need pos_actions1
-        # pos_actions2
-
         """Apply actions from policy as position/rotation targets."""
 
         # Interpret actions as target pos displacements and set pos target
         pos_actions = actions[:, 0:3]
-        pos_actions_2 = actions[:, 12:15]
         if do_scale:
             pos_actions = pos_actions @ torch.diag(torch.tensor(self.cfg_task.rl.pos_action_scale, device=self.device))
-            pos_actions_2 = pos_actions_2 @ torch.diag(torch.tensor(self.cfg_task.rl.pos_action_scale, device=self.device))
-
         self.ctrl_target_fingertip_midpoint_pos = self.fingertip_midpoint_pos + pos_actions
-        self.ctrl_target_fingertip_midpoint_pos_2 = self.fingertip_midpoint_pos_2 + pos_actions_2
 
         # Interpret actions as target rot (axis-angle) displacements
         rot_actions = actions[:, 3:6]
-        rot_actions_2 = actions[:, 15:18]
         if do_scale:
             rot_actions = rot_actions @ torch.diag(torch.tensor(self.cfg_task.rl.rot_action_scale, device=self.device))
-            rot_actions_2 = rot_actions_2 @ torch.diag(torch.tensor(self.cfg_task.rl.rot_action_scale, device=self.device))
 
         # Convert to quat and set rot target
         angle = torch.norm(rot_actions, p=2, dim=-1)
-        angle_2 = torch.norm(rot_actions_2, p=2, dim=-1)
-
         axis = rot_actions / angle.unsqueeze(-1)
-        axis_2 = rot_actions_2 / angle_2.unsqueeze(-1)
-
         rot_actions_quat = torch_utils.quat_from_angle_axis(angle, axis)
-        rot_actions_quat_2 = torch_utils.quat_from_angle_axis(angle_2, axis_2)
         if self.cfg_task.rl.clamp_rot:
             rot_actions_quat = torch.where(angle.unsqueeze(-1).repeat(1, 4) > self.cfg_task.rl.clamp_rot_thresh,
                                            rot_actions_quat,
                                            torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).repeat(self.num_envs,
                                                                                                          1))
-
-            rot_actions_quat_2 = torch.where(angle_2.unsqueeze(-1).repeat(1, 4) > self.cfg_task.rl.clamp_rot_thresh,
-                                           rot_actions_quat_2,
-                                           torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).repeat(self.num_envs,
-                                                                                                         1))
-
         self.ctrl_target_fingertip_midpoint_quat = torch_utils.quat_mul(rot_actions_quat, self.fingertip_midpoint_quat)
-        self.ctrl_target_fingertip_midpoint_quat_2 = torch_utils.quat_mul(rot_actions_quat_2, self.fingertip_midpoint_quat_2)
 
         if self.cfg_ctrl['do_force_ctrl']:
             # Interpret actions as target forces and target torques
             force_actions = actions[:, 6:9]
-            force_actions_2 = actions[:, 18:21]
-
             if do_scale:
                 force_actions = force_actions @ torch.diag(
                     torch.tensor(self.cfg_task.rl.force_action_scale, device=self.device))
 
-                force_actions_2 = force_actions_2 @ torch.diag(
-                    torch.tensor(self.cfg_task.rl.force_action_scale, device=self.device))
-
             torque_actions = actions[:, 9:12]
-            torque_actions_2 = actions[:, 21:24]
             if do_scale:
                 torque_actions = torque_actions @ torch.diag(
                     torch.tensor(self.cfg_task.rl.torque_action_scale, device=self.device))
-                torque_actions_2 = torque_actions_2 @ torch.diag(
-                    torch.tensor(self.cfg_task.rl.torque_action_scale, device=self.device))
 
             self.ctrl_target_fingertip_contact_wrench = torch.cat((force_actions, torque_actions), dim=-1)
-            self.ctrl_target_fingertip_contact_wrench_2 = torch.cat((force_actions_2, torque_actions_2), dim=-1)
 
         self.ctrl_target_gripper_dof_pos = ctrl_target_gripper_dof_pos
-        self.ctrl_target_gripper_dof_pos_2 = ctrl_target_gripper_dof_pos  # ctrl_target_gripper_dof_pos is the a function parameter
 
         self.generate_ctrl_signals()
 
@@ -413,7 +342,6 @@ class FactoryTaskNutBoltPick_MARL(FactoryEnvNutBolt_MARL, FactoryABCTask):
     def _get_keypoint_dist(self):
         """Get keypoint distance."""
 
-        # second franka for keypoint bolt, keyboard gripper 2
         keypoint_dist = torch.sum(torch.norm(self.keypoints_nut - self.keypoints_gripper, p=2, dim=-1), dim=-1)
 
         return keypoint_dist
@@ -426,7 +354,7 @@ class FactoryTaskNutBoltPick_MARL(FactoryEnvNutBolt_MARL, FactoryABCTask):
     def _move_gripper_to_dof_pos(self, gripper_dof_pos, sim_steps=20):
         """Move gripper fingers to specified DOF position using controller."""
 
-        delta_hand_pose = torch.zeros((self.num_envs, self.cfg_task.env.numActions),  # need delta_hand_pose_2, new pos_error, axis_error_
+        delta_hand_pose = torch.zeros((self.num_envs, self.cfg_task.env.numActions),
                                       device=self.device)  # No hand motion
         self._apply_actions_as_ctrl_targets(delta_hand_pose, gripper_dof_pos, do_scale=False)
 
@@ -502,7 +430,7 @@ class FactoryTaskNutBoltPick_MARL(FactoryEnvNutBolt_MARL, FactoryABCTask):
                 rot_error_type='axis_angle')
 
             delta_hand_pose = torch.cat((pos_error, axis_angle_error), dim=-1)
-            actions = torch.zeros((self.num_envs, self.cfg_task.env.numActions), device=self.device)  # check numActions for dual Franka. numActions is 12, 
+            actions = torch.zeros((self.num_envs, self.cfg_task.env.numActions), device=self.device)
             actions[:, :6] = delta_hand_pose
 
             self._apply_actions_as_ctrl_targets(actions=actions,

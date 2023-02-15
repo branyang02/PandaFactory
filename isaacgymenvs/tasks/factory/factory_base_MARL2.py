@@ -30,7 +30,7 @@
 
 Inherits Gym's VecTask class and abstract base class. Inherited by environment classes. Not directly executed.
 
-Configuration defined in FactoryBase_MARL.yaml. Asset info defined in factory_asset_info_franka_table.yaml.
+Configuration defined in FactoryBase_MARL2.yaml. Asset info defined in factory_asset_info_franka_table.yaml.
 """
 
 
@@ -49,7 +49,7 @@ from isaacgymenvs.tasks.factory.factory_schema_class_base import FactoryABCBase
 from isaacgymenvs.tasks.factory.factory_schema_config_base import FactorySchemaConfigBase
 
 
-class FactoryBase_MARL(VecTask, FactoryABCBase):
+class FactoryBase_MARL2(VecTask, FactoryABCBase):
 
     def __init__(self, cfg, rl_device, sim_device, graphics_device_id, headless, virtual_screen_capture, force_render):
         """Initialize instance variables. Initialize VecTask superclass."""
@@ -70,7 +70,7 @@ class FactoryBase_MARL(VecTask, FactoryABCBase):
         cs = hydra.core.config_store.ConfigStore.instance()
         cs.store(name='factory_schema_config_base', node=FactorySchemaConfigBase)
 
-        config_path = 'task/FactoryBase_MARL.yaml'  # relative to Gym's Hydra search path (cfg dir)
+        config_path = 'task/FactoryBase_MARL2.yaml'  # relative to Gym's Hydra search path (cfg dir)
         self.cfg_base = hydra.compose(config_name=config_path)
         self.cfg_base = self.cfg_base['task']  # strip superfluous nesting
 
@@ -106,8 +106,6 @@ class FactoryBase_MARL(VecTask, FactoryABCBase):
 
     def import_franka_assets(self):
         """Set Franka and table asset options. Import assets."""
-
-        ### Franka 2 asset should be the same as Franka 1 asset ###
 
         urdf_root = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'assets', 'factory', 'urdf')
         franka_file = 'factory_franka.urdf'
@@ -156,28 +154,14 @@ class FactoryBase_MARL(VecTask, FactoryABCBase):
             table_options.mesh_normal_mode = gymapi.COMPUTE_PER_FACE
 
         franka_asset = self.gym.load_asset(self.sim, urdf_root, franka_file, franka_options)
-        # franka_asset_2 = self.gym.load_asset(self.sim, urdf_root, franka_file, franka_options)
-
-        # changed table width from 1.0 to 4.0
         table_asset = self.gym.create_box(self.sim, self.asset_info_franka_table.table_depth,
-                                          4.0, self.cfg_base.env.table_height,
+                                          self.asset_info_franka_table.table_width, self.cfg_base.env.table_height,
                                           table_options)
 
         return franka_asset, table_asset
 
     def acquire_base_tensors(self):
-        """
-        Acquire and wrap tensors. Create views.
-        
-        default values:
-        num_envs = 128
-        num_actors = 5 (franka_1, franka_2, nut, bolt, table)
-        num_dofs = 18
-        num_bodies = 27 (one more panda than single agent)
-
-        """
-
-
+        """Acquire and wrap tensors. Create views."""
 
         _root_state = self.gym.acquire_actor_root_state_tensor(self.sim)  # shape = (num_envs * num_actors, 13)
         _body_state = self.gym.acquire_rigid_body_state_tensor(self.sim)  # shape = (num_envs * num_bodies, 13)
@@ -186,10 +170,6 @@ class FactoryBase_MARL(VecTask, FactoryABCBase):
         _contact_force = self.gym.acquire_net_contact_force_tensor(self.sim)  # shape = (num_envs * num_bodies, 3)
         _jacobian = self.gym.acquire_jacobian_tensor(self.sim, 'franka')  # shape = (num envs, num_bodies, 6, num_dofs)
         _mass_matrix = self.gym.acquire_mass_matrix_tensor(self.sim, 'franka')  # shape = (num_envs, num_dofs, num_dofs)
-        
-        # Franka 2 pos_control
-        _jacobian_2 = self.gym.acquire_jacobian_tensor(self.sim, 'franka_2')
-        _mass_matrix_2 = self.gym.acquire_mass_matrix_tensor(self.sim, 'franka_2')
 
         self.root_state = gymtorch.wrap_tensor(_root_state)
         self.body_state = gymtorch.wrap_tensor(_body_state)
@@ -199,44 +179,6 @@ class FactoryBase_MARL(VecTask, FactoryABCBase):
         self.jacobian = gymtorch.wrap_tensor(_jacobian)
         self.mass_matrix = gymtorch.wrap_tensor(_mass_matrix)
 
-        # Wrap_Tensor for Franka_2
-        self.jacobian_2 = gymtorch.wrap_tensor(_jacobian_2)
-        self.mass_matrix_2 = gymtorch.wrap_tensor(_mass_matrix_2)
-
-        print("root state: ", self.root_state.size()) # torch.Size([640, 13]), 
-        #  128 more than single agent, because x2 actor_count
-
-        # x2 degree of freedom (single agent: 9, double agent: 18)
-        print("dof state: ", self.dof_state.size())  # torch.Size([2304, 2])
-
-        """
-        List of default tensor sizes for two panda robots:
-
-        root state:  torch.Size([640, 13])
-        body state:  torch.Size([3456, 13])
-        dof state:  torch.Size([2304, 2])
-        dof force:  torch.Size([2304])
-        contact force:  torch.Size([3456, 3])
-        jacobian:  torch.Size([128, 11, 6, 9])
-        mass matrix:  torch.Size([128, 9, 9])
-        jacobian_2:  torch.Size([128, 11, 6, 9])
-        mass matrix_2:  torch.Size([128, 9, 9])
-
-        List of default tensor sizes for ONE panda:
-        root state:  torch.Size([512, 13])
-        body state:  torch.Size([1920, 13])
-        dof state:  torch.Size([1152, 2])
-        dof force:  torch.Size([1152])
-        contact force:  torch.Size([1920, 3])
-        jacobian:  torch.Size([128, 11, 6, 9])
-        mass matrix:  torch.Size([128, 9, 9])
-        """
-
-
-
-        # I don't think anything should be changed here
-        # duplicate the whole thing, but index 
-        # (self.num_envs, self.num_actors, 13), should be 26.
         self.root_pos = self.root_state.view(self.num_envs, self.num_actors, 13)[..., 0:3]
         self.root_quat = self.root_state.view(self.num_envs, self.num_actors, 13)[..., 3:7]
         self.root_linvel = self.root_state.view(self.num_envs, self.num_actors, 13)[..., 7:10]
@@ -251,87 +193,36 @@ class FactoryBase_MARL(VecTask, FactoryABCBase):
         self.contact_force = self.contact_force.view(self.num_envs, self.num_bodies, 3)[..., 0:3]
 
         self.arm_dof_pos = self.dof_pos[:, 0:7]
-
-        # Franka_1 arm mass matrix
         self.arm_mass_matrix = self.mass_matrix[:, 0:7, 0:7]  # for Franka arm (not gripper)
-        # Franka_2 arm mass matrix
-        self.arm_mass_matrix_2 = self.mass_matrix_2[:, 0:7, 0:7]  # for Franka_2 arm (not gripper)
 
-        # Franka 1 Properties
         self.hand_pos = self.body_pos[:, self.hand_body_id_env, 0:3]
         self.hand_quat = self.body_quat[:, self.hand_body_id_env, 0:4]
         self.hand_linvel = self.body_linvel[:, self.hand_body_id_env, 0:3]
         self.hand_angvel = self.body_angvel[:, self.hand_body_id_env, 0:3]
-
-        # Franka 2 Properties
-        self.hand_pos_2 = self.body_pos[:, self.hand_body_id_env_2, 0:3]
-        self.hand_quat_2 = self.body_quat[:, self.hand_body_id_env_2, 0:4]
-        self.hand_linvel_2 = self.body_linvel[:, self.hand_body_id_env_2, 0:3]
-        self.hand_angvel_2 = self.body_angvel[:, self.hand_body_id_env_2, 0:3]
-        
-        # Franka_1 Hand Jacobian
         self.hand_jacobian = self.jacobian[:, self.hand_body_id_env - 1, 0:6, 0:7]  # minus 1 because base is fixed
-        # Franka_2 Hand Jacobian
-        print("hand_body_id_env_2: ", self.hand_body_id_env_2)
-        print("hand_body_id_env: ", self.hand_body_id_env)
-        # -11 because environment default
-        self.hand_jacobian_2 = self.jacobian_2[:, self.hand_body_id_env_2 - 1 -11, 0:6, 0:7]  # minus 1 because base is fixed
 
-        # Franka 1
         self.left_finger_pos = self.body_pos[:, self.left_finger_body_id_env, 0:3]
         self.left_finger_quat = self.body_quat[:, self.left_finger_body_id_env, 0:4]
         self.left_finger_linvel = self.body_linvel[:, self.left_finger_body_id_env, 0:3]
         self.left_finger_angvel = self.body_angvel[:, self.left_finger_body_id_env, 0:3]
         self.left_finger_jacobian = self.jacobian[:, self.left_finger_body_id_env - 1, 0:6, 0:7]  # minus 1 because base is fixed
 
-        # Franka 2
-        self.left_finger_pos_2 = self.body_pos[:, self.left_finger_body_id_env_2, 0:3]
-        self.left_finger_quat_2 = self.body_quat[:, self.left_finger_body_id_env_2, 0:4]
-        self.left_finger_linvel_2 = self.body_linvel[:, self.left_finger_body_id_env_2, 0:3]
-        self.left_finger_angvel_2 = self.body_angvel[:, self.left_finger_body_id_env_2, 0:3]
-        # -11 because environment default
-        self.left_finger_jacobian_2 = self.jacobian_2[:, self.left_finger_body_id_env_2 - 1 -11, 0:6, 0:7]
-        
-        # Franka 1
         self.right_finger_pos = self.body_pos[:, self.right_finger_body_id_env, 0:3]
         self.right_finger_quat = self.body_quat[:, self.right_finger_body_id_env, 0:4]
         self.right_finger_linvel = self.body_linvel[:, self.right_finger_body_id_env, 0:3]
         self.right_finger_angvel = self.body_angvel[:, self.right_finger_body_id_env, 0:3]
         self.right_finger_jacobian = self.jacobian[:, self.right_finger_body_id_env - 1, 0:6, 0:7]  # minus 1 because base is fixed
 
-        # Franka 2
-        self.right_finger_pos_2 = self.body_pos[:, self.right_finger_body_id_env_2, 0:3]
-        self.right_finger_quat_2 = self.body_quat[:, self.right_finger_body_id_env_2, 0:4]
-        self.right_finger_linvel_2 = self.body_linvel[:, self.right_finger_body_id_env_2, 0:3]
-        self.right_finger_angvel_2 = self.body_angvel[:, self.right_finger_body_id_env_2, 0:3]
-        # -11 because environment default
-        self.right_finger_jacobian_2 = self.jacobian_2[:, self.right_finger_body_id_env_2 - 1 -11, 0:6, 0:7]
-
-        # Franka 1
         self.left_finger_force = self.contact_force[:, self.left_finger_body_id_env, 0:3]
         self.right_finger_force = self.contact_force[:, self.right_finger_body_id_env, 0:3]
 
-        # Franka 2
-        self.left_finger_force_2 = self.contact_force[:, self.left_finger_body_id_env_2, 0:3]
-        self.right_finger_force_2 = self.contact_force[:, self.right_finger_body_id_env_2, 0:3]
-
-
         self.gripper_dof_pos = self.dof_pos[:, 7:9]
 
-        # Franka 1
         self.fingertip_centered_pos = self.body_pos[:, self.fingertip_centered_body_id_env, 0:3]
         self.fingertip_centered_quat = self.body_quat[:, self.fingertip_centered_body_id_env, 0:4]
         self.fingertip_centered_linvel = self.body_linvel[:, self.fingertip_centered_body_id_env, 0:3]
         self.fingertip_centered_angvel = self.body_angvel[:, self.fingertip_centered_body_id_env, 0:3]
         self.fingertip_centered_jacobian = self.jacobian[:, self.fingertip_centered_body_id_env - 1, 0:6, 0:7]  # minus 1 because base is fixed
-
-        # Franka 2
-        self.fingertip_centered_pos_2 = self.body_pos[:, self.fingertip_centered_body_id_env_2, 0:3]
-        self.fingertip_centered_quat_2 = self.body_quat[:, self.fingertip_centered_body_id_env_2, 0:4]
-        self.fingertip_centered_linvel_2 = self.body_linvel[:, self.fingertip_centered_body_id_env_2, 0:3]
-        self.fingertip_centered_angvel_2 = self.body_angvel[:, self.fingertip_centered_body_id_env_2, 0:3]
-        # -11 because environment default
-        self.fingertip_centered_jacobian_2 = self.jacobian_2[:, self.fingertip_centered_body_id_env_2 - 1 -12, 0:6, 0:7]
 
         self.fingertip_midpoint_pos = self.fingertip_centered_pos.detach().clone()  # initial value
         self.fingertip_midpoint_quat = self.fingertip_centered_quat  # always equal
@@ -355,32 +246,6 @@ class FactoryBase_MARL(VecTask, FactoryABCBase):
 
         self.prev_actions = torch.zeros((self.num_envs, self.num_actions), device=self.device)
 
-
-
-
-        # Franka_2
-        self.fingertip_midpoint_pos_2 = self.fingertip_centered_pos_2.detach().clone()  # initial value
-        self.fingertip_midpoint_quat_2 = self.fingertip_centered_quat_2  # always equal
-        self.fingertip_midpoint_linvel_2 = self.fingertip_centered_linvel_2.detach().clone()  # initial value
-        # From sum of angular velocities (https://physics.stackexchange.com/questions/547698/understanding-addition-of-angular-velocity),
-        # angular velocity of midpoint w.r.t. world is equal to sum of
-        # angular velocity of midpoint w.r.t. hand and angular velocity of hand w.r.t. world. 
-        # Midpoint is in sliding contact (i.e., linear relative motion) with hand; angular velocity of midpoint w.r.t. hand is zero.
-        # Thus, angular velocity of midpoint w.r.t. world is equal to angular velocity of hand w.r.t. world.
-        self.fingertip_midpoint_angvel_2 = self.fingertip_centered_angvel_2  # always equal
-        self.fingertip_midpoint_jacobian_2 = (self.left_finger_jacobian_2 + self.right_finger_jacobian_2) * 0.5  # approximation
-
-        # self.dof_torque = torch.zeros((self.num_envs, self.num_dofs), device=self.device)
-        # self.fingertip_contact_wrench = torch.zeros((self.num_envs, 6), device=self.device)
-
-        # self.ctrl_target_fingertip_midpoint_pos = torch.zeros((self.num_envs, 3), device=self.device)
-        # self.ctrl_target_fingertip_midpoint_quat = torch.zeros((self.num_envs, 4), device=self.device)
-        # self.ctrl_target_dof_pos = torch.zeros((self.num_envs, self.num_dofs), device=self.device)
-        # self.ctrl_target_gripper_dof_pos = torch.zeros((self.num_envs, 2), device=self.device)
-        # self.ctrl_target_fingertip_contact_wrench = torch.zeros((self.num_envs, 6), device=self.device)
-
-        # self.prev_actions = torch.zeros((self.num_envs, self.num_actions), device=self.device)
-
     def refresh_base_tensors(self):
         """Refresh tensors."""
         # NOTE: Tensor refresh functions should be called once per step, before setters.
@@ -403,18 +268,6 @@ class FactoryBase_MARL(VecTask, FactoryABCBase):
                                                                                       (self.fingertip_midpoint_pos - self.fingertip_centered_pos),
                                                                                       dim=1)
         self.fingertip_midpoint_jacobian = (self.left_finger_jacobian + self.right_finger_jacobian) * 0.5  # approximation
-
-        # Franka 2 
-        self.finger_midpoint_pos_2 = (self.left_finger_pos_2 + self.right_finger_pos_2) * 0.5
-        self.fingertip_midpoint_pos_2 = fc.translate_along_local_z(pos=self.finger_midpoint_pos_2,
-                                                                 quat=self.hand_quat_2,
-                                                                 offset=self.asset_info_franka_table.franka_finger_length,
-                                                                 device=self.device)
-        # TODO: Add relative velocity term (see https://dynamicsmotioncontrol487379916.files.wordpress.com/2020/11/21-me258pointmovingrigidbody.pdf)
-        self.fingertip_midpoint_linvel_2 = self.fingertip_centered_linvel_2 + torch.cross(self.fingertip_centered_angvel_2,
-                                                                                      (self.fingertip_midpoint_pos_2 - self.fingertip_centered_pos_2),
-                                                                                      dim=1)
-        self.fingertip_midpoint_jacobian_2 = (self.left_finger_jacobian_2 + self.right_finger_jacobian_2) * 0.5  # approximation
 
 
     def parse_controller_spec(self):
@@ -568,7 +421,6 @@ class FactoryBase_MARL(VecTask, FactoryABCBase):
         # Get desired Jacobian
         if self.cfg_ctrl['jacobian_type'] == 'geometric':
             self.fingertip_midpoint_jacobian_tf = self.fingertip_midpoint_jacobian
-            # self.fingertip_midpoint_jacobian_tf = self.fingertip_midpoint_jacobian_2
         elif self.cfg_ctrl['jacobian_type'] == 'analytic':
             self.fingertip_midpoint_jacobian_tf = fc.get_analytic_jacobian(
                 fingertip_quat=self.fingertip_quat,
@@ -626,7 +478,6 @@ class FactoryBase_MARL(VecTask, FactoryABCBase):
                                                         gymtorch.unwrap_tensor(self.dof_torque),
                                                         gymtorch.unwrap_tensor(self.franka_actor_ids_sim),
                                                         len(self.franka_actor_ids_sim))
-        
 
     def print_sdf_warning(self):
         """Generate SDF warning message."""

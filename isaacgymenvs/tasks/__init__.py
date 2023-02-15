@@ -47,6 +47,7 @@ from .shadow_hand import ShadowHand
 from .allegro_hand import AllegroHand
 from .trifinger import Trifinger
 from .factory.factory_task_nut_bolt_pick_MARL import FactoryTaskNutBoltPick_MARL
+from .factory.factory_task_nut_bolt_pick_MARL2 import FactoryTaskNutBoltPick_MARL2
 
 # Mappings from strings to environments
 isaacgym_task_map = {
@@ -69,5 +70,6 @@ isaacgym_task_map = {
     "Quadcopter": Quadcopter,
     "ShadowHand": ShadowHand,
     "Trifinger": Trifinger,
-    "FactoryTaskNutBoltPick_MARL": FactoryTaskNutBoltPick_MARL
+    "FactoryTaskNutBoltPick_MARL": FactoryTaskNutBoltPick_MARL,
+    "FactoryTaskNutBoltPick_MARL2": FactoryTaskNutBoltPick_MARL2,
 }

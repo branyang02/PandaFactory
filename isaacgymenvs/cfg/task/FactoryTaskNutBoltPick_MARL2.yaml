@@ -1,11 +1,11 @@
 # See schema in factory_schema_config_task.py for descriptions of common parameters.
 
 defaults:
-    - FactoryBase_MARL
+    - FactoryBase
     - _self_
     # - /factory_schema_config_task
 
-name: FactoryTaskNutBoltPick_MARL
+name: FactoryTaskNutBoltPick
 physics_engine: ${..physics_engine}
 
 sim:
@@ -13,8 +13,8 @@ sim:
 
 env:
     numEnvs: ${resolve_default:128,${...num_envs}}
-    numObservations: 20 # default: 20
-    numActions: 24  # default: 12
+    numObservations: 20
+    numActions: 12
 
     close_and_lift: True  # close gripper and lift after last step of episode
     num_gripper_move_sim_steps: 20  # number of timesteps to reserve for moving gripper before first step of episode
@@ -29,8 +29,7 @@ randomize:
     fingertip_midpoint_rot_noise: [0.3, 0.3, 1]  # noise on rotation
     nut_pos_xy_initial: [0.0, -0.3]  # initial XY position of nut on table
     nut_pos_xy_initial_noise: [0.1, 0.1]  # noise on nut position
-    # default: bolt_pos_xy_initial: [0.0, 0.0] 
-    bolt_pos_xy_initial: [0.0, 1.0]  # initial position of bolt on table (for the second franka)
+    bolt_pos_xy_initial: [0.0, 0.0]  # initial position of bolt on table
     bolt_pos_xy_noise: [0.1, 0.1]  # noise on bolt position
 
 rl:
