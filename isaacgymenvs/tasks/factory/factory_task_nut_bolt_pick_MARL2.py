@@ -101,6 +101,26 @@ class FactoryTaskNutBoltPick_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
         self.identity_quat = torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).unsqueeze(0).repeat(self.num_envs,
                                                                                                         1)
 
+        """
+        nut_grasp_heights:  torch.Size([128, 1])
+        nut_grasp_pos_local:  torch.Size([128, 3])
+        nut_grasp_quat_local:  torch.Size([128, 4])
+        keypoint_offsets:  torch.Size([4, 3])
+        keypoints_gripper:  torch.Size([128, 4, 3])
+        keypoints_nut:  torch.Size([128, 4, 3])
+        identity_quat:  torch.Size([128, 4])
+        """
+
+        
+        # print("nut_grasp_heights: ", nut_grasp_heights.shape)
+        # print("nut_grasp_pos_local: ", self.nut_grasp_pos_local.shape)
+        # print("nut_grasp_quat_local: ", self.nut_grasp_quat_local.shape)
+        # print("keypoint_offsets: ", self.keypoint_offsets.shape)
+        # print("keypoints_gripper: ", self.keypoints_gripper.shape)
+        # print("keypoints_nut: ", self.keypoints_nut.shape)
+        # print("identity_quat: ", self.identity_quat.shape)
+        
+
     def _refresh_task_tensors(self):
         """Refresh tensors."""
 
@@ -124,11 +144,16 @@ class FactoryTaskNutBoltPick_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
     def pre_physics_step(self, actions):
         """Reset environments. Apply actions from policy. Simulation step called after this method."""
 
+        # changed numActions from 12 to 24 in FactoryTaskNutBoltPick_MARL2.yaml
+
         env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
         if len(env_ids) > 0:
             self.reset_idx(env_ids)
 
         self.actions = actions.clone().to(self.device)  # shape = (num_envs, num_actions); values = [-1, 1]
+        """
+        self.actions = torch.Size([128, 12])
+        """
 
         self._apply_actions_as_ctrl_targets(actions=self.actions,
                                             ctrl_target_gripper_dof_pos=self.asset_info_franka_table.franka_gripper_width_max,
@@ -158,14 +183,25 @@ class FactoryTaskNutBoltPick_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
         """Compute observations."""
 
         # Shallow copies of tensors
+        # added self.fingertip_midpoint_pos_2,
+            #    self.fingertip_midpoint_quat_2,
+            #    self.fingertip_midpoint_linvel_2,
+            #    self.fingertip_midpoint_angvel_2
+
         obs_tensors = [self.fingertip_midpoint_pos,
                        self.fingertip_midpoint_quat,
                        self.fingertip_midpoint_linvel,
                        self.fingertip_midpoint_angvel,
                        self.nut_grasp_pos,
-                       self.nut_grasp_quat]
+                       self.nut_grasp_quat,
+                       self.fingertip_midpoint_pos_2,
+                       self.fingertip_midpoint_quat_2,
+                       self.fingertip_midpoint_linvel_2,
+                       self.fingertip_midpoint_angvel_2]
 
-        self.obs_buf = torch.cat(obs_tensors, dim=-1)  # shape = (num_envs, num_observations)
+        self.obs_buf = torch.cat(obs_tensors, dim=-1)  # shape = (num_envs, num_observations)  self.obs_buf:  torch.Size([128, 20])
+        # updated obs_buf size with added observations from franka_2: 
+        # torch.Size([128, 33])
 
         return self.obs_buf
 
