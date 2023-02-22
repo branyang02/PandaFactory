@@ -1,0 +1,45 @@
+factory_env_nut_bolt_MARL2
+variables:
+
+franka_pose_2 = gymapi.Transform()
+self.franka_handles_2 = []
+self.shape_ids_2 = []
+self.franka_actor_ids_sim_2 = []
+'franka_2'
+franka_handle_2
+link7_id_2
+hand_id_2
+left_finger_id_2
+right_finger_id_2
+self.shape_ids_2
+franka_shape_props_2 
+self.franka_num_dofs_2
+self.hand_body_id_env_2 
+self.left_finger_body_id_env_2
+self.right_finger_body_id_env_2
+self.fingertip_centered_body_id_env_2
+
+
+
+
+Factory Base FactoryBase_MARL2
+variables:
+
+_jacobian_2: temp variable
+_mass_matrix_2: temp variable
+self.jacobian_2: temp variable
+self.mass_matrix_2: temp variable
+self.arm_dof_pos_2
+
+
+
+
+
+
+
+Look AT:
+fc.translate_along_local_z
+fc.compute_dof_torque
+
+
+

@@ -171,6 +171,17 @@ class FactoryBase(VecTask, FactoryABCBase):
         _jacobian = self.gym.acquire_jacobian_tensor(self.sim, 'franka')  # shape = (num envs, num_bodies, 6, num_dofs)
         _mass_matrix = self.gym.acquire_mass_matrix_tensor(self.sim, 'franka')  # shape = (num_envs, num_dofs, num_dofs)
 
+        print("num_envs: ", self.num_envs)
+        print("num_actors: ", self.num_actors)
+        print("num_bodies: ", self.num_bodies)
+        print("num_dofs: ", self.num_dofs)
+        print("_root_state: ", _root_state.shape)
+        print("_body_state: ", _body_state.shape)
+        print("_dof_state: ", _dof_state.shape)
+        print("_contact_state: ", _contact_force.shape)
+        print("_jacobian: ", _jacobian.shape)
+        print("_mass_matrix: ", _mass_matrix.shape)
+
         self.root_state = gymtorch.wrap_tensor(_root_state)
         self.body_state = gymtorch.wrap_tensor(_body_state)
         self.dof_state = gymtorch.wrap_tensor(_dof_state)

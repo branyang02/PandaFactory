@@ -1,11 +1,11 @@
 # See schema in factory_schema_config_task.py for descriptions of common parameters.
 
 defaults:
-    - FactoryBase
+    - FactoryBase_MARL2
     - _self_
     # - /factory_schema_config_task
 
-name: FactoryTaskNutBoltPick
+name: FactoryTaskNutBoltPick_MARL2
 physics_engine: ${..physics_engine}
 
 sim:
@@ -29,7 +29,8 @@ randomize:
     fingertip_midpoint_rot_noise: [0.3, 0.3, 1]  # noise on rotation
     nut_pos_xy_initial: [0.0, -0.3]  # initial XY position of nut on table
     nut_pos_xy_initial_noise: [0.1, 0.1]  # noise on nut position
-    bolt_pos_xy_initial: [0.0, 0.0]  # initial position of bolt on table
+    # bolt_pos_xy_initial: [0.0, 0.0]  # initial position of bolt on table
+    bolt_pos_xy_initial: [0.0, 1.0]  # initial position of bolt on table
     bolt_pos_xy_noise: [0.1, 0.1]  # noise on bolt position
 
 rl:
