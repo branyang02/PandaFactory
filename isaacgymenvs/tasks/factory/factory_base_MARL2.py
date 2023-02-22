@@ -797,10 +797,42 @@ class FactoryBase_MARL2(VecTask, FactoryABCBase):
 
     # This is used to wrap tensor
     def _wrap_tensor(self):
+        # print("franka_actor_ids_sim: ", self.franka_actor_ids_sim)
+        # print("franka_actor_ids_sim_2: ", self.franka_actor_ids_sim_2)
+
+        """
+        franka_actor_ids_sim:  tensor([  0,   5,  10,  15,  20,  25,  30,  35,  40,  45,  50,  55,  60,  65,
+         70,  75,  80,  85,  90,  95, 100, 105, 110, 115, 120, 125, 130, 135,
+        140, 145, 150, 155, 160, 165, 170, 175, 180, 185, 190, 195, 200, 205,
+        210, 215, 220, 225, 230, 235, 240, 245, 250, 255, 260, 265, 270, 275,
+        280, 285, 290, 295, 300, 305, 310, 315, 320, 325, 330, 335, 340, 345,
+        350, 355, 360, 365, 370, 375, 380, 385, 390, 395, 400, 405, 410, 415,
+        420, 425, 430, 435, 440, 445, 450, 455, 460, 465, 470, 475, 480, 485,
+        490, 495, 500, 505, 510, 515, 520, 525, 530, 535, 540, 545, 550, 555,
+        560, 565, 570, 575, 580, 585, 590, 595, 600, 605, 610, 615, 620, 625,
+        630, 635], device='cuda:0', dtype=torch.int32)
+        franka_actor_ids_sim_2:  tensor([  0,   5,  10,  15,  20,  25,  30,  35,  40,  45,  50,  55,  60,  65,
+         70,  75,  80,  85,  90,  95, 100, 105, 110, 115, 120, 125, 130, 135,
+        140, 145, 150, 155, 160, 165, 170, 175, 180, 185, 190, 195, 200, 205,
+        210, 215, 220, 225, 230, 235, 240, 245, 250, 255, 260, 265, 270, 275,
+        280, 285, 290, 295, 300, 305, 310, 315, 320, 325, 330, 335, 340, 345,
+        350, 355, 360, 365, 370, 375, 380, 385, 390, 395, 400, 405, 410, 415,
+        420, 425, 430, 435, 440, 445, 450, 455, 460, 465, 470, 475, 480, 485,
+        490, 495, 500, 505, 510, 515, 520, 525, 530, 535, 540, 545, 550, 555,
+        560, 565, 570, 575, 580, 585, 590, 595, 600, 605, 610, 615, 620, 625,
+        630, 635], device='cuda:0', dtype=torch.int32)
+        """
+
+        self.franka_actor_ids_sim_concat = torch.cat((self.franka_actor_ids_sim, self.franka_actor_ids_sim_2), dim=0)
+        # print("length of franka_actor_ids_sim_concatenate: ", len(self.franka_actor_ids_sim_concat))
+        """
+        size of franka_actor_ids_sim_concatenate: 256
+        """
+
         self.gym.set_dof_actuation_force_tensor_indexed(self.sim,
                                                         gymtorch.unwrap_tensor(self.dof_torque),
-                                                        gymtorch.unwrap_tensor(self.franka_actor_ids_sim),
-                                                        len(self.franka_actor_ids_sim))
+                                                        gymtorch.unwrap_tensor(self.franka_actor_ids_sim_concat),
+                                                        len(self.franka_actor_ids_sim_concat))                  
 
     def _set_dof_torque(self):
         """Set Franka DOF torque to move fingertips towards target pose."""
