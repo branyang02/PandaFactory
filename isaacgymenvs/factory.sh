@@ -1,0 +1,1 @@
+python train.py task=FactoryTaskNutBoltPick_MARL2
