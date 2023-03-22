@@ -221,7 +221,7 @@ def compute_dof_torque(cfg_ctrl,
         # Set tau = J^T * tau, i.e., map tau into joint space as desired
         jacobian_T = torch.transpose(jacobian, dim0=1, dim1=2)
         dof_torque[:, 0:7] = (jacobian_T @ task_wrench.unsqueeze(-1)).squeeze(-1)
-
+    
     dof_torque[:, 7:9] = cfg_ctrl['gripper_prop_gains'] * (ctrl_target_gripper_dof_pos - dof_pos[:, 7:9]) + \
                          cfg_ctrl['gripper_deriv_gains'] * (0.0 - dof_vel[:, 7:9])  # gripper finger joints
     dof_torque = torch.clamp(dof_torque, min=-100.0, max=100.0)

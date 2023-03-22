@@ -29,7 +29,7 @@
 """Factory: Class for nut-bolt pick task.
 
 Inherits nut-bolt environment class and abstract task class (not enforced). Can be executed with
-python train.py task=FactoryTaskNutBoltPick_MARL2
+python train.py task=FactoryTaskNutBoltPick
 """
 
 import hydra
@@ -72,11 +72,12 @@ class FactoryTaskNutBoltPick_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
         self.cfg_task = omegaconf.OmegaConf.create(self.cfg)
         self.max_episode_length = self.cfg_task.rl.max_episode_length  # required instance var for VecTask
 
-        asset_info_path = '../../assets/factory/yaml/factory_asset_info_nut_bolt.yaml'  # relative to Gym's Hydra search path (cfg dir)
-        self.asset_info_nut_bolt = hydra.compose(config_name=asset_info_path)
-        self.asset_info_nut_bolt = self.asset_info_nut_bolt['']['']['']['']['']['']['assets']['factory']['yaml']  # strip superfluous nesting
+        asset_info_path = os.path.join('..', '..', 'assets', 'factory', 'yaml',
+                                       'factory_asset_info_nut_bolt.yaml')  # relative to Gym's Hydra search path (cfg dir)
+        self.asset_info_insertion = hydra.compose(config_name=asset_info_path)
+        self.asset_info_insertion = self.asset_info_insertion['']['']['']['']['']['']['assets']['factory']['yaml']  # strip superfluous nesting
 
-        ppo_path = 'train/FactoryTaskNutBoltPick_MARL2PPO.yaml'  # relative to Gym's Hydra search path (cfg dir)
+        ppo_path = os.path.join('train/FactoryTaskNutBoltPickPPO.yaml')  # relative to Gym's Hydra search path (cfg dir)
         self.cfg_ppo = hydra.compose(config_name=ppo_path)
         self.cfg_ppo = self.cfg_ppo['train']  # strip superfluous nesting
 
@@ -101,26 +102,6 @@ class FactoryTaskNutBoltPick_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
         self.identity_quat = torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).unsqueeze(0).repeat(self.num_envs,
                                                                                                         1)
 
-        """
-        nut_grasp_heights:  torch.Size([128, 1])
-        nut_grasp_pos_local:  torch.Size([128, 3])
-        nut_grasp_quat_local:  torch.Size([128, 4])
-        keypoint_offsets:  torch.Size([4, 3])
-        keypoints_gripper:  torch.Size([128, 4, 3])
-        keypoints_nut:  torch.Size([128, 4, 3])
-        identity_quat:  torch.Size([128, 4])
-        """
-
-        
-        # print("nut_grasp_heights: ", nut_grasp_heights.shape)
-        # print("nut_grasp_pos_local: ", self.nut_grasp_pos_local.shape)
-        # print("nut_grasp_quat_local: ", self.nut_grasp_quat_local.shape)
-        # print("keypoint_offsets: ", self.keypoint_offsets.shape)
-        # print("keypoints_gripper: ", self.keypoints_gripper.shape)
-        # print("keypoints_nut: ", self.keypoints_nut.shape)
-        # print("identity_quat: ", self.identity_quat.shape)
-        
-
     def _refresh_task_tensors(self):
         """Refresh tensors."""
 
@@ -130,7 +111,7 @@ class FactoryTaskNutBoltPick_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
                                                                              self.nut_grasp_quat_local,
                                                                              self.nut_grasp_pos_local)
 
-        # Compute pos of keypoints on gripper and nut in world frame
+        # Compute pos of keypoints on gripper and nut in world frame        
         for idx, keypoint_offset in enumerate(self.keypoint_offsets):
             self.keypoints_gripper[:, idx] = torch_jit_utils.tf_combine(self.fingertip_midpoint_quat,
                                                                         self.fingertip_midpoint_pos,
@@ -144,16 +125,11 @@ class FactoryTaskNutBoltPick_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
     def pre_physics_step(self, actions):
         """Reset environments. Apply actions from policy. Simulation step called after this method."""
 
-        # changed numActions from 12 to 24 in FactoryTaskNutBoltPick_MARL2.yaml
-
         env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
         if len(env_ids) > 0:
             self.reset_idx(env_ids)
 
         self.actions = actions.clone().to(self.device)  # shape = (num_envs, num_actions); values = [-1, 1]
-        """
-        self.actions = torch.Size([128, 12])
-        """
 
         self._apply_actions_as_ctrl_targets(actions=self.actions,
                                             ctrl_target_gripper_dof_pos=self.asset_info_franka_table.franka_gripper_width_max,
@@ -183,25 +159,18 @@ class FactoryTaskNutBoltPick_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
         """Compute observations."""
 
         # Shallow copies of tensors
-        # added self.fingertip_midpoint_pos_2,
-            #    self.fingertip_midpoint_quat_2,
-            #    self.fingertip_midpoint_linvel_2,
-            #    self.fingertip_midpoint_angvel_2
-
         obs_tensors = [self.fingertip_midpoint_pos,
                        self.fingertip_midpoint_quat,
                        self.fingertip_midpoint_linvel,
                        self.fingertip_midpoint_angvel,
-                       self.nut_grasp_pos,
-                       self.nut_grasp_quat,
                        self.fingertip_midpoint_pos_2,
                        self.fingertip_midpoint_quat_2,
                        self.fingertip_midpoint_linvel_2,
-                       self.fingertip_midpoint_angvel_2]
+                       self.fingertip_midpoint_angvel_2,
+                       self.nut_grasp_pos,
+                       self.nut_grasp_quat]
 
-        self.obs_buf = torch.cat(obs_tensors, dim=-1)  # shape = (num_envs, num_observations)  self.obs_buf:  torch.Size([128, 20])
-        # updated obs_buf size with added observations from franka_2: 
-        # torch.Size([128, 33])
+        self.obs_buf = torch.cat(obs_tensors, dim=-1)  # shape = (num_envs, num_observations)
 
         return self.obs_buf
 
@@ -252,24 +221,24 @@ class FactoryTaskNutBoltPick_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
 
         self.dof_pos[env_ids] = torch.cat(
             (torch.tensor(self.cfg_task.randomize.franka_arm_initial_dof_pos, device=self.device),
-            torch.tensor(self.cfg_task.randomize.franka_arm_initial_dof_pos, device=self.device),   # extra line intialization for franka_2
              torch.tensor([self.asset_info_franka_table.franka_gripper_width_max], device=self.device),
              torch.tensor([self.asset_info_franka_table.franka_gripper_width_max], device=self.device),
-             torch.tensor([self.asset_info_franka_table.franka_gripper_width_max], device=self.device), # extra initialization franka_2
-             torch.tensor([self.asset_info_franka_table.franka_gripper_width_max], device=self.device)  # extra initialization franka_2
+             torch.tensor(self.cfg_task.randomize.franka_arm_initial_dof_pos, device=self.device),
+             torch.tensor([self.asset_info_franka_table.franka_gripper_width_max], device=self.device),
+             torch.tensor([self.asset_info_franka_table.franka_gripper_width_max], device=self.device)  
              ),
             dim=-1).unsqueeze(0).repeat((self.num_envs, 1))  # shape = (num_envs, num_dofs)
-
-
         self.dof_vel[env_ids] = 0.0  # shape = (num_envs, num_dofs)
         self.ctrl_target_dof_pos[env_ids] = self.dof_pos[env_ids]
 
         multi_env_ids_int32 = self.franka_actor_ids_sim[env_ids].flatten()
+        multi_env_ids_int32_2 = self.franka_actor_ids_sim_2[env_ids].flatten()
+        multi_env_ids_int32 = torch.cat((multi_env_ids_int32, multi_env_ids_int32_2)).flatten()
         self.gym.set_dof_state_tensor_indexed(self.sim,
                                               gymtorch.unwrap_tensor(self.dof_state),
                                               gymtorch.unwrap_tensor(multi_env_ids_int32),
                                               len(multi_env_ids_int32))
-
+        
     def _reset_object(self, env_ids):
         """Reset root states of nut and bolt."""
 
@@ -459,6 +428,7 @@ class FactoryTaskNutBoltPick_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
 
         # Step sim and render
         for _ in range(sim_steps):
+            # print ("is this ever called?")
             self.refresh_base_tensors()
             self.refresh_env_tensors()
             self._refresh_task_tensors()
@@ -471,14 +441,29 @@ class FactoryTaskNutBoltPick_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
                 jacobian_type=self.cfg_ctrl['jacobian_type'],
                 rot_error_type='axis_angle')
 
+            # print ("fingertip_midpoint_pos_2 ", self.fingertip_midpoint_pos_2) 
+            pos_error_2, axis_angle_error_2 = fc.get_pose_error(
+                fingertip_midpoint_pos=self.fingertip_midpoint_pos_2,
+                fingertip_midpoint_quat=self.fingertip_midpoint_quat_2,
+                ctrl_target_fingertip_midpoint_pos=self.ctrl_target_fingertip_midpoint_pos_2,
+                ctrl_target_fingertip_midpoint_quat=self.ctrl_target_fingertip_midpoint_quat_2,
+                jacobian_type=self.cfg_ctrl['jacobian_type'],
+                rot_error_type='axis_angle')
+            # print ("pos_error : ", pos_error, pos_error_2)
             delta_hand_pose = torch.cat((pos_error, axis_angle_error), dim=-1)
+            delta_hand_pose_2 = torch.cat((pos_error_2, axis_angle_error_2), dim=-1)
             actions = torch.zeros((self.num_envs, self.cfg_task.env.numActions), device=self.device)
-            actions[:, :6] = delta_hand_pose
-
+            actions_2 = torch.zeros((self.num_envs, self.cfg_task.env.numActions), device=self.device)
+            
+            actions[:, :6] = delta_hand_pose            
+            actions_2[:, :6] = delta_hand_pose_2            
             self._apply_actions_as_ctrl_targets(actions=actions,
                                                 ctrl_target_gripper_dof_pos=self.asset_info_franka_table.franka_gripper_width_max,
-                                                do_scale=False)
+                                                do_scale=False)            
 
+            self._apply_actions_as_ctrl_targets(actions=actions_2,
+                                                ctrl_target_gripper_dof_pos=self.asset_info_franka_table.franka_gripper_width_max,
+                                                do_scale=False)            
             self.gym.simulate(self.sim)
             self.render()
 
