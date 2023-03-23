@@ -154,9 +154,15 @@ class FactoryBase_MARL3(VecTask, FactoryABCBase):
             table_options.mesh_normal_mode = gymapi.COMPUTE_PER_FACE
 
         franka_asset = self.gym.load_asset(self.sim, urdf_root, franka_file, franka_options)
+        # table_asset = self.gym.create_box(self.sim, self.asset_info_franka_table.table_depth,
+        #                                   self.asset_info_franka_table.table_width, self.cfg_base.env.table_height,
+        #                                   table_options)
+
+
+        # NOTE: changed table width from 1.0 to 4.0 to fit two frankas
         table_asset = self.gym.create_box(self.sim, self.asset_info_franka_table.table_depth,
-                                          self.asset_info_franka_table.table_width, self.cfg_base.env.table_height,
-                                          table_options)
+                                            4.0, self.cfg_base.env.table_height,
+                                            table_options)
 
         return franka_asset, table_asset
 
@@ -170,6 +176,8 @@ class FactoryBase_MARL3(VecTask, FactoryABCBase):
         _contact_force = self.gym.acquire_net_contact_force_tensor(self.sim)  # shape = (num_envs * num_bodies, 3)
         _jacobian = self.gym.acquire_jacobian_tensor(self.sim, 'franka')  # shape = (num envs, num_bodies, 6, num_dofs)
         _mass_matrix = self.gym.acquire_mass_matrix_tensor(self.sim, 'franka')  # shape = (num_envs, num_dofs, num_dofs)
+        _jacobian_2 = self.gym.acquire_jacobian_tensor(self.sim, 'franka_2')  # shape = (num envs, num_bodies, 6, num_dofs)
+        _mass_matrix_2 = self.gym.acquire_mass_matrix_tensor(self.sim, 'franka_2')  # shape = (num_envs, num_dofs, num_dofs)
 
         print("num_envs: ", self.num_envs)
         print("num_actors: ", self.num_actors)
@@ -182,6 +190,19 @@ class FactoryBase_MARL3(VecTask, FactoryABCBase):
         print("_jacobian: ", _jacobian.shape)
         print("_mass_matrix: ", _mass_matrix.shape)
 
+        """
+        num_envs:  128
+        num_actors:  5
+        num_bodies:  27
+        num_dofs:  18
+        _root_state:  (640, 13)
+        _body_state:  (3456, 13)
+        _dof_state:  (2304, 2)
+        _contact_state:  (3456, 3)
+        _jacobian:  (128, 11, 6, 9) -> (128, 11, 6, 18)
+        _mass_matrix:  (128, 9, 9)  -> (128, 9, 18)
+        """
+
         self.root_state = gymtorch.wrap_tensor(_root_state)
         self.body_state = gymtorch.wrap_tensor(_body_state)
         self.dof_state = gymtorch.wrap_tensor(_dof_state)
@@ -189,6 +210,45 @@ class FactoryBase_MARL3(VecTask, FactoryABCBase):
         self.contact_force = gymtorch.wrap_tensor(_contact_force)
         self.jacobian = gymtorch.wrap_tensor(_jacobian)
         self.mass_matrix = gymtorch.wrap_tensor(_mass_matrix)
+        self.jacobian_2 = gymtorch.wrap_tensor(_jacobian_2)
+        self.mass_matrix_2 = gymtorch.wrap_tensor(_mass_matrix_2)
+
+        # # NOTE: changed num_dofs from 9 to 18
+        # # concatenate jacobian and mass matrix
+        # device = torch.device('cuda:0')
+        # self.jacobian = torch.from_numpy(np.concatenate((self.jacobian.cpu(), self.jacobian_2.cpu()), axis=1)).to(device)
+        # self.jacobian = torch.from_numpy(np.concatenate((self.jacobian.cpu(), self.jacobian_2.cpu()), axis=3)).to(device)         # (128, 11, 6, 18)
+        # self.mass_matrix = torch.from_numpy(np.concatenate((self.mass_matrix.cpu(), self.mass_matrix_2.cpu()), axis=2)).to(device)  # (128, 9, 18)
+        
+        self.mass_matrix_2 = torch.cat([self.mass_matrix, self.mass_matrix_2], dim=2)
+
+
+        jacobian_cpu = self.jacobian.cpu().numpy()
+        jacobian_2_cpu = self.jacobian_2.cpu().numpy()
+
+        concatenated_matrix = np.concatenate((jacobian_cpu, jacobian_2_cpu), axis=3)
+        self.jacobian = np.concatenate((concatenated_matrix, concatenated_matrix), axis=1)
+        self.jacobian = torch.from_numpy(self.jacobian).to(self.root_state.device)
+
+        print("concatenated_jacobian: ", self.jacobian.shape)
+        print("self.mass_matrix_2: ", self.mass_matrix_2.shape)
+
+        """
+        Updated Values:
+
+        num_envs:  128
+        num_actors:  5
+        num_bodies:  27
+        num_dofs:  18
+        _root_state:  torch.Size([640, 13])
+        _body_state:  torch.Size([3456, 13])
+        _dof_state:  torch.Size([2304, 2])
+        _dof_force:  torch.Size([2304])
+        _contact_state:  torch.Size([3456, 3])
+        _jacobian:  torch.Size([128, 11, 6, 18])
+        _mass_matrix:  torch.Size([128, 9, 18])
+        """
+
 
         self.root_pos = self.root_state.view(self.num_envs, self.num_actors, 13)[..., 0:3]
         self.root_quat = self.root_state.view(self.num_envs, self.num_actors, 13)[..., 3:7]
@@ -204,37 +264,77 @@ class FactoryBase_MARL3(VecTask, FactoryABCBase):
         self.contact_force = self.contact_force.view(self.num_envs, self.num_bodies, 3)[..., 0:3]
 
         self.arm_dof_pos = self.dof_pos[:, 0:7]
+        self.arm_dof_pos_2 = self.dof_pos[:, 9:16]
         self.arm_mass_matrix = self.mass_matrix[:, 0:7, 0:7]  # for Franka arm (not gripper)
+        self.arm_mass_matrix_2 = self.mass_matrix[:, 0:7, 9:16]  # for Franka_2 arm (not gripper)
 
+        # Franka_1 Body States
         self.hand_pos = self.body_pos[:, self.hand_body_id_env, 0:3]
         self.hand_quat = self.body_quat[:, self.hand_body_id_env, 0:4]
         self.hand_linvel = self.body_linvel[:, self.hand_body_id_env, 0:3]
         self.hand_angvel = self.body_angvel[:, self.hand_body_id_env, 0:3]
         self.hand_jacobian = self.jacobian[:, self.hand_body_id_env - 1, 0:6, 0:7]  # minus 1 because base is fixed
 
+        # NOTE: franka_2 Body States
+        self.hand_pos_2 = self.body_pos[:, self.hand_body_id_env_2, 0:3]
+        self.hand_quat_2 = self.body_quat[:, self.hand_body_id_env_2, 0:4]
+        self.hand_linvel_2 = self.body_linvel[:, self.hand_body_id_env_2, 0:3]
+        self.hand_angvel_2 = self.body_angvel[:, self.hand_body_id_env_2, 0:3]
+        self.hand_jacobian_2 = self.jacobian[:, self.hand_body_id_env_2 - 2, 0:6, 9:16]  # minus 1 because base is fixed
+
+        # Franka_1 left_finger
         self.left_finger_pos = self.body_pos[:, self.left_finger_body_id_env, 0:3]
         self.left_finger_quat = self.body_quat[:, self.left_finger_body_id_env, 0:4]
         self.left_finger_linvel = self.body_linvel[:, self.left_finger_body_id_env, 0:3]
         self.left_finger_angvel = self.body_angvel[:, self.left_finger_body_id_env, 0:3]
         self.left_finger_jacobian = self.jacobian[:, self.left_finger_body_id_env - 1, 0:6, 0:7]  # minus 1 because base is fixed
 
+        # NOTE: franka_2 Left Finger
+        self.left_finger_pos_2 = self.body_pos[:, self.left_finger_body_id_env_2, 0:3]
+        self.left_finger_quat_2 = self.body_quat[:, self.left_finger_body_id_env_2, 0:4]
+        self.left_finger_linvel_2 = self.body_linvel[:, self.left_finger_body_id_env_2, 0:3]
+        self.left_finger_angvel_2 = self.body_angvel[:, self.left_finger_body_id_env_2, 0:3]
+        self.left_finger_jacobian_2 = self.jacobian[:, self.left_finger_body_id_env_2 - 2, 0:6, 9:16]  # minus 1 because base is fixed
+
+        # Franka_1 right_finger
         self.right_finger_pos = self.body_pos[:, self.right_finger_body_id_env, 0:3]
         self.right_finger_quat = self.body_quat[:, self.right_finger_body_id_env, 0:4]
         self.right_finger_linvel = self.body_linvel[:, self.right_finger_body_id_env, 0:3]
         self.right_finger_angvel = self.body_angvel[:, self.right_finger_body_id_env, 0:3]
         self.right_finger_jacobian = self.jacobian[:, self.right_finger_body_id_env - 1, 0:6, 0:7]  # minus 1 because base is fixed
 
+        # NOTE: franka_2 Right Finger
+        self.right_finger_pos_2 = self.body_pos[:, self.right_finger_body_id_env_2, 0:3]
+        self.right_finger_quat_2 = self.body_quat[:, self.right_finger_body_id_env_2, 0:4]
+        self.right_finger_linvel_2 = self.body_linvel[:, self.right_finger_body_id_env_2, 0:3]
+        self.right_finger_angvel_2 = self.body_angvel[:, self.right_finger_body_id_env_2, 0:3]
+        self.right_finger_jacobian_2 = self.jacobian[:, self.right_finger_body_id_env_2 - 2, 0:6, 9:16]  # minus 1 because base is fixed
+
+
         self.left_finger_force = self.contact_force[:, self.left_finger_body_id_env, 0:3]
+        self.left_finger_force_2 = self.contact_force[:, self.left_finger_body_id_env_2, 0:3]
         self.right_finger_force = self.contact_force[:, self.right_finger_body_id_env, 0:3]
+        self.right_finger_force_2 = self.contact_force[:, self.right_finger_body_id_env_2, 0:3]
+
 
         self.gripper_dof_pos = self.dof_pos[:, 7:9]
+        self.gripper_dof_pos_2 = self.dof_pos[:, 16:18]
 
+        # franka_1
         self.fingertip_centered_pos = self.body_pos[:, self.fingertip_centered_body_id_env, 0:3]
         self.fingertip_centered_quat = self.body_quat[:, self.fingertip_centered_body_id_env, 0:4]
         self.fingertip_centered_linvel = self.body_linvel[:, self.fingertip_centered_body_id_env, 0:3]
         self.fingertip_centered_angvel = self.body_angvel[:, self.fingertip_centered_body_id_env, 0:3]
         self.fingertip_centered_jacobian = self.jacobian[:, self.fingertip_centered_body_id_env - 1, 0:6, 0:7]  # minus 1 because base is fixed
 
+        # NOTE: Franka_2
+        self.fingertip_centered_pos_2 = self.body_pos[:, self.fingertip_centered_body_id_env_2, 0:3]
+        self.fingertip_centered_quat_2 = self.body_quat[:, self.fingertip_centered_body_id_env_2, 0:4]
+        self.fingertip_centered_linvel_2 = self.body_linvel[:, self.fingertip_centered_body_id_env_2, 0:3]
+        self.fingertip_centered_angvel_2 = self.body_angvel[:, self.fingertip_centered_body_id_env_2, 0:3]
+        self.fingertip_centered_jacobian_2 = self.jacobian[:, self.fingertip_centered_body_id_env_2 - 2, 0:6, 9:16]  # minus 1 because base is fixed   
+
+        # franka_1
         self.fingertip_midpoint_pos = self.fingertip_centered_pos.detach().clone()  # initial value
         self.fingertip_midpoint_quat = self.fingertip_centered_quat  # always equal
         self.fingertip_midpoint_linvel = self.fingertip_centered_linvel.detach().clone()  # initial value
@@ -246,6 +346,20 @@ class FactoryBase_MARL3(VecTask, FactoryABCBase):
         self.fingertip_midpoint_angvel = self.fingertip_centered_angvel  # always equal
         self.fingertip_midpoint_jacobian = (self.left_finger_jacobian + self.right_finger_jacobian) * 0.5  # approximation
 
+        # NOTE: Franka_2
+        self.fingertip_midpoint_pos_2 = self.fingertip_centered_pos_2.detach().clone()  # initial value
+        self.fingertip_midpoint_quat_2 = self.fingertip_centered_quat_2  # always equal
+        self.fingertip_midpoint_linvel_2 = self.fingertip_centered_linvel_2.detach().clone()  # initial value
+        # From sum of angular velocities (https://physics.stackexchange.com/questions/547698/understanding-addition-of-angular-velocity),
+        # angular velocity of midpoint w.r.t. world is equal to sum of
+        # angular velocity of midpoint w.r.t. hand and angular velocity of hand w.r.t. world. 
+        # Midpoint is in sliding contact (i.e., linear relative motion) with hand; angular velocity of midpoint w.r.t. hand is zero.
+        # Thus, angular velocity of midpoint w.r.t. world is equal to angular velocity of hand w.r.t. world.
+        self.fingertip_midpoint_angvel_2 = self.fingertip_centered_angvel_2  # always equal
+        self.fingertip_midpoint_jacobian_2 = (self.left_finger_jacobian_2 + self.right_finger_jacobian_2) * 0.5  # approximation
+
+
+        # franka_1 intialized values
         self.dof_torque = torch.zeros((self.num_envs, self.num_dofs), device=self.device)
         self.fingertip_contact_wrench = torch.zeros((self.num_envs, 6), device=self.device)
 
@@ -254,6 +368,17 @@ class FactoryBase_MARL3(VecTask, FactoryABCBase):
         self.ctrl_target_dof_pos = torch.zeros((self.num_envs, self.num_dofs), device=self.device)
         self.ctrl_target_gripper_dof_pos = torch.zeros((self.num_envs, 2), device=self.device)
         self.ctrl_target_fingertip_contact_wrench = torch.zeros((self.num_envs, 6), device=self.device)
+
+
+        # NOTE: Franka_2 intialize values
+        self.fingertip_contact_wrench_2 = torch.zeros((self.num_envs, 6), device=self.device)
+
+        self.ctrl_target_fingertip_midpoint_pos_2 = torch.zeros((self.num_envs, 3), device=self.device)
+        self.ctrl_target_fingertip_midpoint_quat_2 = torch.zeros((self.num_envs, 4), device=self.device)
+
+        self.ctrl_target_gripper_dof_pos_2 = torch.zeros((self.num_envs, 2), device=self.device)
+        self.ctrl_target_fingertip_contact_wrench_2 = torch.zeros((self.num_envs, 6), device=self.device)
+
 
         self.prev_actions = torch.zeros((self.num_envs, self.num_actions), device=self.device)
 

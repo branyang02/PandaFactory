@@ -214,11 +214,22 @@ class FactoryTaskNutBoltPick_MARL3(FactoryEnvNutBolt_MARL3, FactoryABCTask):
     def _reset_franka(self, env_ids):
         """Reset DOF states and DOF targets of Franka."""
 
+        # self.dof_pos[env_ids] = torch.cat(
+        #     (torch.tensor(self.cfg_task.randomize.franka_arm_initial_dof_pos, device=self.device),
+        #      torch.tensor([self.asset_info_franka_table.franka_gripper_width_max], device=self.device),
+        #      torch.tensor([self.asset_info_franka_table.franka_gripper_width_max], device=self.device)),
+        #     dim=-1).unsqueeze(0).repeat((self.num_envs, 1))  # shape = (num_envs, num_dofs)
+        
         self.dof_pos[env_ids] = torch.cat(
             (torch.tensor(self.cfg_task.randomize.franka_arm_initial_dof_pos, device=self.device),
+            torch.tensor(self.cfg_task.randomize.franka_arm_initial_dof_pos, device=self.device),   # extra line intialization for franka_2
              torch.tensor([self.asset_info_franka_table.franka_gripper_width_max], device=self.device),
-             torch.tensor([self.asset_info_franka_table.franka_gripper_width_max], device=self.device)),
+             torch.tensor([self.asset_info_franka_table.franka_gripper_width_max], device=self.device),
+             torch.tensor([self.asset_info_franka_table.franka_gripper_width_max], device=self.device), # extra initialization franka_2
+             torch.tensor([self.asset_info_franka_table.franka_gripper_width_max], device=self.device)  # extra initialization franka_2
+             ),
             dim=-1).unsqueeze(0).repeat((self.num_envs, 1))  # shape = (num_envs, num_dofs)
+
         self.dof_vel[env_ids] = 0.0  # shape = (num_envs, num_dofs)
         self.ctrl_target_dof_pos[env_ids] = self.dof_pos[env_ids]
 
