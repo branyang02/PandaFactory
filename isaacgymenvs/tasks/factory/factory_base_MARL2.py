@@ -42,12 +42,12 @@ import sys
 import torch
 
 from gym import logger
+import isaacgym
 from isaacgym import gymapi, gymtorch, torch_utils
 from isaacgymenvs.tasks.base.vec_task import VecTask
 import isaacgymenvs.tasks.factory.factory_control_MARL2 as fc
 from isaacgymenvs.tasks.factory.factory_schema_class_base import FactoryABCBase
 from isaacgymenvs.tasks.factory.factory_schema_config_base import FactorySchemaConfigBase
-
 
 class FactoryBase_MARL2(VecTask, FactoryABCBase):
 
@@ -209,8 +209,7 @@ class FactoryBase_MARL2(VecTask, FactoryABCBase):
         _dof_force = self.gym.acquire_dof_force_tensor(self.sim)  # shape = (num_envs * num_dofs, 1)
         _contact_force = self.gym.acquire_net_contact_force_tensor(self.sim)  # shape = (num_envs * num_bodies, 3)
         _jacobian = self.gym.acquire_jacobian_tensor(self.sim, 'franka')  # shape = (num envs, num_bodies, 6, num_dofs)
-        _mass_matrix = self.gym.acquire_mass_matrix_tensor(self.sim, 'franka')  # shape = (num_envs, num_dofs, num_dofs)
-
+        _mass_matrix = self.gym.acquire_mass_matrix_tensor(self.sim, 'franka')  # shape = (num_envs, num_dofs, num_dofs)        
         _jacobian_2 = self.gym.acquire_jacobian_tensor(self.sim, 'franka_2')  # shape = (num envs, num_bodies, 6, num_dofs)
         _mass_matrix_2 = self.gym.acquire_mass_matrix_tensor(self.sim, 'franka_2')  # shape = (num_envs, num_dofs, num_dofs)
         # print ("_root_state.shape ", _root_state.shape, self.num_actors)
@@ -222,17 +221,18 @@ class FactoryBase_MARL2(VecTask, FactoryABCBase):
         self.jacobian = gymtorch.wrap_tensor(_jacobian)
         self.mass_matrix = gymtorch.wrap_tensor(_mass_matrix) 
         self.jacobian_2 = gymtorch.wrap_tensor(_jacobian_2)
-        self.mass_matrix_2 = gymtorch.wrap_tensor(_mass_matrix_2)
-
+        self.mass_matrix_2 = gymtorch.wrap_tensor(_mass_matrix_2)        
         mass_matrix_cpu = self.mass_matrix.cpu().numpy()
         mass_matrix_2_cpu = self.mass_matrix_2.cpu().numpy()
-
+        print ("self.mass_matrix ", self.mass_matrix.shape)
         self.mass_matrix = torch.cat((self.mass_matrix, self.mass_matrix_2), dim=-1)
+        self.mass_matrix = torch.cat((self.mass_matrix, self.mass_matrix), dim=-2)
         # print ("self.dof_state ", self.dof_state.shape)
-        self.jacobian = torch.cat((self.jacobian, self.jacobian_2), dim=1)
+        self.jacobian = torch.cat((self.jacobian, self.jacobian_2), dim=-1)
+        self.jacobian = torch.cat((self.jacobian, self.jacobian), dim=1)
+        print ("self.jacobian ", self.jacobian.shape)
         # print ("self.jacobian ", self.jacobian.shape) # [128, 11, 6, 9]
-        # self.mass_matrix = torch.from_numpy(self.mass_matrix).to(self.root_state.device)
-
+        # self.mass_matrix = torch.from_numpy(self.mass_matrix).to(self.root_state.device)        
         self.root_pos = self.root_state.view(self.num_envs, self.num_actors, 13)[..., 0:3]
         self.root_quat = self.root_state.view(self.num_envs, self.num_actors, 13)[..., 3:7]
         self.root_linvel = self.root_state.view(self.num_envs, self.num_actors, 13)[..., 7:10]
@@ -245,12 +245,12 @@ class FactoryBase_MARL2(VecTask, FactoryABCBase):
         self.dof_vel = self.dof_state.view(self.num_envs, self.num_dofs, 2)[..., 1]
         self.dof_force_view = self.dof_force.view(self.num_envs, self.num_dofs, 1)[..., 0]
         self.contact_force = self.contact_force.view(self.num_envs, self.num_bodies, 3)[..., 0:3]
-        # print ("dof_pos: ", self.dof_pos.shape)
+        
         self.arm_dof_pos = self.dof_pos[:, 0:7]
         self.arm_mass_matrix = self.mass_matrix[:, 0:7, 0:7]  # for Franka arm (not gripper)
 
         self.arm_dof_pos_2 = self.dof_pos[:, 9:16]
-        self.arm_mass_matrix_2 = self.mass_matrix[:, 0:7, 9:16]  # for Franka arm (not gripper)        
+        self.arm_mass_matrix_2 = self.mass_matrix[:, 9:16, 9:16]  # for Franka arm (not gripper)        
         self.hand_pos = self.body_pos[:, self.hand_body_id_env, 0:3]
         self.hand_quat = self.body_quat[:, self.hand_body_id_env, 0:4]
         self.hand_linvel = self.body_linvel[:, self.hand_body_id_env, 0:3]
@@ -261,9 +261,10 @@ class FactoryBase_MARL2(VecTask, FactoryABCBase):
         self.hand_quat_2 = self.body_quat[:, self.hand_body_id_env_2, 0:4]
         self.hand_linvel_2 = self.body_linvel[:, self.hand_body_id_env_2, 0:3]
         self.hand_angvel_2 = self.body_angvel[:, self.hand_body_id_env_2, 0:3]
-        self.hand_jacobian_2 = self.jacobian[:, self.hand_body_id_env_2 - 1, 0:6, 0:7]
-
+        self.hand_jacobian_2 = self.jacobian[:, self.hand_body_id_env_2 - 1, 0:6, 9:16]
+        
         self.left_finger_pos = self.body_pos[:, self.left_finger_body_id_env, 0:3]
+        
         self.left_finger_quat = self.body_quat[:, self.left_finger_body_id_env, 0:4]
         self.left_finger_linvel = self.body_linvel[:, self.left_finger_body_id_env, 0:3]
         self.left_finger_angvel = self.body_angvel[:, self.left_finger_body_id_env, 0:3]
@@ -278,13 +279,12 @@ class FactoryBase_MARL2(VecTask, FactoryABCBase):
         self.left_finger_quat_2 = self.body_quat[:, self.left_finger_body_id_env_2, 0:4]
         self.left_finger_linvel_2 = self.body_linvel[:, self.left_finger_body_id_env_2, 0:3]
         self.left_finger_angvel_2 = self.body_angvel[:, self.left_finger_body_id_env_2, 0:3]
-        self.left_finger_jacobian_2 = self.jacobian[:, self.left_finger_body_id_env_2 - 1, 0:6, 0:7]  # minus 1 because base is fixed
+        self.left_finger_jacobian_2 = self.jacobian[:, self.left_finger_body_id_env_2 - 1, 0:6, 9:16]  # minus 1 because base is fixed
         self.right_finger_pos_2 = self.body_pos[:, self.right_finger_body_id_env_2, 0:3]
         self.right_finger_quat_2 = self.body_quat[:, self.right_finger_body_id_env_2, 0:4]
         self.right_finger_linvel_2 = self.body_linvel[:, self.right_finger_body_id_env_2, 0:3]
         self.right_finger_angvel_2 = self.body_angvel[:, self.right_finger_body_id_env_2, 0:3]
-        self.right_finger_jacobian_2 = self.jacobian[:, self.right_finger_body_id_env_2 - 1, 0:6, 0:7]  # minus 1 because base is fixed
-
+        self.right_finger_jacobian_2 = self.jacobian[:, self.right_finger_body_id_env_2 - 1, 0:6, 9:16]  # minus 1 because base is fixed        
         self.left_finger_force = self.contact_force[:, self.left_finger_body_id_env, 0:3]
         self.right_finger_force = self.contact_force[:, self.right_finger_body_id_env, 0:3]
 
@@ -304,7 +304,7 @@ class FactoryBase_MARL2(VecTask, FactoryABCBase):
         self.fingertip_centered_quat_2 = self.body_quat[:, self.fingertip_centered_body_id_env, 0:4]
         self.fingertip_centered_linvel_2 = self.body_linvel[:, self.fingertip_centered_body_id_env, 0:3]
         self.fingertip_centered_angvel_2 = self.body_angvel[:, self.fingertip_centered_body_id_env, 0:3]
-        self.fingertip_centered_jacobian_2 = self.jacobian[:, self.fingertip_centered_body_id_env - 1, 0:6, 0:7]  # minus 1 because base is fixed
+        self.fingertip_centered_jacobian_2 = self.jacobian[:, self.fingertip_centered_body_id_env - 1, 0:6, 9:16]  # minus 1 because base is fixed              
 
         self.fingertip_midpoint_pos = self.fingertip_centered_pos.detach().clone()  # initial value
         self.fingertip_midpoint_quat = self.fingertip_centered_quat  # always equal
@@ -354,8 +354,7 @@ class FactoryBase_MARL2(VecTask, FactoryABCBase):
         self.gym.refresh_dof_force_tensor(self.sim)
         self.gym.refresh_net_contact_force_tensor(self.sim)
         self.gym.refresh_jacobian_tensors(self.sim)
-        self.gym.refresh_mass_matrix_tensors(self.sim)
-
+        self.gym.refresh_mass_matrix_tensors(self.sim)        
         self.finger_midpoint_pos = (self.left_finger_pos + self.right_finger_pos) * 0.5
         self.finger_midpoint_pos_2 = (self.left_finger_pos_2 + self.right_finger_pos_2) * 0.5
 
@@ -363,11 +362,11 @@ class FactoryBase_MARL2(VecTask, FactoryABCBase):
                                                                  quat=self.hand_quat,
                                                                  offset=self.asset_info_franka_table.franka_finger_length,
                                                                  device=self.device)
+                                           
         self.fingertip_midpoint_pos_2 = fc.translate_along_local_z(pos=self.finger_midpoint_pos_2,
                                                                  quat=self.hand_quat_2,
                                                                  offset=self.asset_info_franka_table.franka_finger_length,
-                                                                 device=self.device)
-
+                                                                 device=self.device)                                                   
         # TODO: Add relative velocity term (see https://dynamicsmotioncontrol487379916.files.wordpress.com/2020/11/21-me258pointmovingrigidbody.pdf)
         self.fingertip_midpoint_linvel = self.fingertip_centered_linvel + torch.cross(self.fingertip_centered_angvel,
                                                                                       (self.fingertip_midpoint_pos - self.fingertip_centered_pos),
@@ -377,7 +376,7 @@ class FactoryBase_MARL2(VecTask, FactoryABCBase):
                                                                                         dim=1)
 
         self.fingertip_midpoint_jacobian = (self.left_finger_jacobian + self.right_finger_jacobian) * 0.5  # approximation
-        self.fingertip_midpoint_jacobian_2 = (self.left_finger_jacobian_2 + self.right_finger_jacobian_2) * 0.5  # approximation
+        self.fingertip_midpoint_jacobian_2 = (self.left_finger_jacobian_2 + self.right_finger_jacobian_2) * 0.5  # approximation        
 
     def parse_controller_spec(self):
         """Parse controller specification into lower-level controller configuration."""
@@ -571,7 +570,9 @@ class FactoryBase_MARL2(VecTask, FactoryABCBase):
 
     def _set_dof_torque(self):
         """Set Franka DOF torque to move fingertips towards target pose."""
-        # print ("ctrl_target_gripper_dof_pos ", self.ctrl_target_gripper_dof_pos, self.dof_pos[:,7:9].shape)
+        self.dof_pos[:,7:9] += 0.1
+
+        # print (self.fingertip_midpoint_pos, self.left_finger_force, self.fingertip_midpoint_jacobian_tf, self.ctrl_target_gripper_dof_pos, )
         self.dof_torque = fc.compute_dof_torque(
             cfg_ctrl=self.cfg_ctrl,
             dof_pos=self.dof_pos[:,:9],
@@ -589,7 +590,7 @@ class FactoryBase_MARL2(VecTask, FactoryABCBase):
             ctrl_target_fingertip_midpoint_quat=self.ctrl_target_fingertip_midpoint_quat,
             ctrl_target_fingertip_contact_wrench=self.ctrl_target_fingertip_contact_wrench,
             device=self.device)
-
+        print ("self.dof_torque ", self.dof_torque)
         self.dof_torque_2 = fc.compute_dof_torque(
             cfg_ctrl=self.cfg_ctrl,
             dof_pos=self.dof_pos[:,9:],
@@ -606,11 +607,12 @@ class FactoryBase_MARL2(VecTask, FactoryABCBase):
             ctrl_target_fingertip_midpoint_pos=self.ctrl_target_fingertip_midpoint_pos_2,
             ctrl_target_fingertip_midpoint_quat=self.ctrl_target_fingertip_midpoint_quat_2,
             ctrl_target_fingertip_contact_wrench=self.ctrl_target_fingertip_contact_wrench_2,
-            device=self.device)
-
+            device=self.device)        
+        
+        # self.dof_torque = torch.FloatTensor(([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.0, 0.0], [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.0, 0.0])).cuda()
         self.gym.set_dof_actuation_force_tensor_indexed(self.sim,
-                                                        gymtorch.unwrap_tensor(torch.cat((self.dof_torque, self.dof_torque_2), dim=-1)),
-                                                        gymtorch.unwrap_tensor(torch.cat((self.franka_actor_ids_sim, self.franka_actor_ids_sim_2), dim=-1)),
+                                                        gymtorch.unwrap_tensor(torch.cat((self.dof_torque, self.dof_torque), dim=-1)),
+                                                        gymtorch.unwrap_tensor(torch.sort(torch.cat((self.franka_actor_ids_sim, self.franka_actor_ids_sim_2), dim=-1)).values.flatten()),
                                                         len(self.franka_actor_ids_sim)*2)
 
     def enable_gravity(self, gravity_mag):
