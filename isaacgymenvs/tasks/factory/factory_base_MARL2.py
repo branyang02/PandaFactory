@@ -358,14 +358,24 @@ class FactoryBase_MARL2(VecTask, FactoryABCBase):
 
         self.finger_midpoint_pos = (self.left_finger_pos + self.right_finger_pos) * 0.5
         self.finger_midpoint_pos_2 = (self.left_finger_pos_2 + self.right_finger_pos_2) * 0.5
+
         self.fingertip_midpoint_pos = fc.translate_along_local_z(pos=self.finger_midpoint_pos,
                                                                  quat=self.hand_quat,
                                                                  offset=self.asset_info_franka_table.franka_finger_length,
                                                                  device=self.device)
+        self.fingertip_midpoint_pos_2 = fc.translate_along_local_z(pos=self.finger_midpoint_pos_2,
+                                                                 quat=self.hand_quat_2,
+                                                                 offset=self.asset_info_franka_table.franka_finger_length,
+                                                                 device=self.device)
+
         # TODO: Add relative velocity term (see https://dynamicsmotioncontrol487379916.files.wordpress.com/2020/11/21-me258pointmovingrigidbody.pdf)
         self.fingertip_midpoint_linvel = self.fingertip_centered_linvel + torch.cross(self.fingertip_centered_angvel,
                                                                                       (self.fingertip_midpoint_pos - self.fingertip_centered_pos),
                                                                                       dim=1)
+        self.fingertip_midpoint_linvel_2 = self.fingertip_centered_linvel_2 + torch.cross(self.fingertip_centered_angvel_2,
+                                                                                        (self.fingertip_midpoint_pos_2 - self.fingertip_centered_pos_2),                    
+                                                                                        dim=1)
+
         self.fingertip_midpoint_jacobian = (self.left_finger_jacobian + self.right_finger_jacobian) * 0.5  # approximation
         self.fingertip_midpoint_jacobian_2 = (self.left_finger_jacobian_2 + self.right_finger_jacobian_2) * 0.5  # approximation
 
@@ -561,7 +571,7 @@ class FactoryBase_MARL2(VecTask, FactoryABCBase):
 
     def _set_dof_torque(self):
         """Set Franka DOF torque to move fingertips towards target pose."""
-        print ("ctrl_target_gripper_dof_pos ", self.ctrl_target_gripper_dof_pos, self.dof_pos[:,7:9].shape)
+        # print ("ctrl_target_gripper_dof_pos ", self.ctrl_target_gripper_dof_pos, self.dof_pos[:,7:9].shape)
         self.dof_torque = fc.compute_dof_torque(
             cfg_ctrl=self.cfg_ctrl,
             dof_pos=self.dof_pos[:,:9],
