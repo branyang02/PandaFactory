@@ -130,7 +130,6 @@ class FactoryTaskNutBoltPick_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
             self.reset_idx(env_ids)
 
         self.actions = actions.clone().to(self.device)  # shape = (num_envs, num_actions); values = [-1, 1]
-
         self._apply_actions_as_ctrl_targets(actions=self.actions,
                                             ctrl_target_gripper_dof_pos=self.asset_info_franka_table.franka_gripper_width_max,
                                             do_scale=True)
@@ -163,10 +162,10 @@ class FactoryTaskNutBoltPick_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
                        self.fingertip_midpoint_quat,
                        self.fingertip_midpoint_linvel,
                        self.fingertip_midpoint_angvel,
-                       self.fingertip_midpoint_pos_2,
-                       self.fingertip_midpoint_quat_2,
-                       self.fingertip_midpoint_linvel_2,
-                       self.fingertip_midpoint_angvel_2,
+                       self.second_fingertip_midpoint_pos,
+                       self.second_fingertip_midpoint_quat,
+                       self.second_fingertip_midpoint_linvel,
+                       self.second_fingertip_midpoint_angvel,
                        self.nut_grasp_pos,
                        self.nut_grasp_quat]
 
@@ -225,20 +224,17 @@ class FactoryTaskNutBoltPick_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
              torch.tensor([self.asset_info_franka_table.franka_gripper_width_max], device=self.device),
              torch.tensor(self.cfg_task.randomize.franka_arm_initial_dof_pos, device=self.device),
              torch.tensor([self.asset_info_franka_table.franka_gripper_width_max], device=self.device),
-             torch.tensor([self.asset_info_franka_table.franka_gripper_width_max], device=self.device)  
-             ),
+             torch.tensor([self.asset_info_franka_table.franka_gripper_width_max], device=self.device)),
             dim=-1).unsqueeze(0).repeat((self.num_envs, 1))  # shape = (num_envs, num_dofs)
         self.dof_vel[env_ids] = 0.0  # shape = (num_envs, num_dofs)
         self.ctrl_target_dof_pos[env_ids] = self.dof_pos[env_ids]
 
         multi_env_ids_int32 = self.franka_actor_ids_sim[env_ids].flatten()
-        multi_env_ids_int32_2 = self.franka_actor_ids_sim_2[env_ids].flatten()
-        multi_env_ids_int32 = torch.cat((multi_env_ids_int32, multi_env_ids_int32_2)).flatten()
         self.gym.set_dof_state_tensor_indexed(self.sim,
                                               gymtorch.unwrap_tensor(self.dof_state),
                                               gymtorch.unwrap_tensor(multi_env_ids_int32),
                                               len(multi_env_ids_int32))
-        
+
     def _reset_object(self, env_ids):
         """Reset root states of nut and bolt."""
 
@@ -303,11 +299,10 @@ class FactoryTaskNutBoltPick_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
         """Apply actions from policy as position/rotation targets."""
 
         # Interpret actions as target pos displacements and set pos target
-        pos_actions = actions[:, 0:3]
+        pos_actions = actions[:, 0:3]        
         if do_scale:
             pos_actions = pos_actions @ torch.diag(torch.tensor(self.cfg_task.rl.pos_action_scale, device=self.device))
-        self.ctrl_target_fingertip_midpoint_pos = self.fingertip_midpoint_pos + pos_actions
-
+        self.ctrl_target_fingertip_midpoint_pos = self.fingertip_midpoint_pos + pos_actions        
         # Interpret actions as target rot (axis-angle) displacements
         rot_actions = actions[:, 3:6]
         if do_scale:
@@ -339,7 +334,7 @@ class FactoryTaskNutBoltPick_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
             self.ctrl_target_fingertip_contact_wrench = torch.cat((force_actions, torque_actions), dim=-1)
 
         self.ctrl_target_gripper_dof_pos = ctrl_target_gripper_dof_pos
-
+        
         self.generate_ctrl_signals()
 
     def _get_keypoint_offsets(self, num_keypoints):
@@ -428,7 +423,6 @@ class FactoryTaskNutBoltPick_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
 
         # Step sim and render
         for _ in range(sim_steps):
-            # print ("is this ever called?")
             self.refresh_base_tensors()
             self.refresh_env_tensors()
             self._refresh_task_tensors()
@@ -441,29 +435,14 @@ class FactoryTaskNutBoltPick_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
                 jacobian_type=self.cfg_ctrl['jacobian_type'],
                 rot_error_type='axis_angle')
 
-            # print ("fingertip_midpoint_pos_2 ", self.fingertip_midpoint_pos_2) 
-            pos_error_2, axis_angle_error_2 = fc.get_pose_error(
-                fingertip_midpoint_pos=self.fingertip_midpoint_pos_2,
-                fingertip_midpoint_quat=self.fingertip_midpoint_quat_2,
-                ctrl_target_fingertip_midpoint_pos=self.ctrl_target_fingertip_midpoint_pos_2,
-                ctrl_target_fingertip_midpoint_quat=self.ctrl_target_fingertip_midpoint_quat_2,
-                jacobian_type=self.cfg_ctrl['jacobian_type'],
-                rot_error_type='axis_angle')
-            # print ("pos_error : ", pos_error, pos_error_2)
             delta_hand_pose = torch.cat((pos_error, axis_angle_error), dim=-1)
-            delta_hand_pose_2 = torch.cat((pos_error_2, axis_angle_error_2), dim=-1)
             actions = torch.zeros((self.num_envs, self.cfg_task.env.numActions), device=self.device)
-            actions_2 = torch.zeros((self.num_envs, self.cfg_task.env.numActions), device=self.device)
-            
-            actions[:, :6] = delta_hand_pose            
-            actions_2[:, :6] = delta_hand_pose_2            
+            actions[:, :6] = delta_hand_pose
+
             self._apply_actions_as_ctrl_targets(actions=actions,
                                                 ctrl_target_gripper_dof_pos=self.asset_info_franka_table.franka_gripper_width_max,
-                                                do_scale=False)            
+                                                do_scale=False)
 
-            self._apply_actions_as_ctrl_targets(actions=actions_2,
-                                                ctrl_target_gripper_dof_pos=self.asset_info_franka_table.franka_gripper_width_max,
-                                                do_scale=False)            
             self.gym.simulate(self.sim)
             self.render()
 

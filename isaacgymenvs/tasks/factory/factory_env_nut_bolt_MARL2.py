@@ -30,7 +30,7 @@
 
 Inherits base class and abstract environment class. Inherited by nut-bolt task classes. Not directly executed.
 
-Configuration defined in FactoryEnvNutBolt_MARL2.yaml. Asset info defined in factory_asset_info_nut_bolt.yaml.
+Configuration defined in FactoryEnvNutBolt.yaml. Asset info defined in factory_asset_info_nut_bolt.yaml.
 """
 
 import hydra
@@ -76,9 +76,8 @@ class FactoryEnvNutBolt_MARL2(FactoryBase_MARL2, FactoryABCEnv):
     def create_envs(self):
         """Set env options. Import assets. Create actors."""
 
-        spacing = 1.0
-        lower = gymapi.Vec3(-spacing, -spacing, 0.0)
-        upper = gymapi.Vec3(spacing, spacing, spacing)
+        lower = gymapi.Vec3(-self.cfg_base.env.env_spacing, -self.cfg_base.env.env_spacing, 0.0)
+        upper = gymapi.Vec3(self.cfg_base.env.env_spacing, self.cfg_base.env.env_spacing, self.cfg_base.env.env_spacing)
         num_per_row = int(np.sqrt(self.num_envs))
 
         franka_asset, table_asset = self.import_franka_assets()
@@ -148,11 +147,11 @@ class FactoryEnvNutBolt_MARL2(FactoryBase_MARL2, FactoryABCEnv):
         franka_pose.p.z = 0.0
         franka_pose.r = gymapi.Quat(0.0, 0.0, 1.0, 0.0)
 
-        franka_pose_2 = gymapi.Transform()
-        franka_pose_2.p.x = self.cfg_base.env.franka_depth
-        franka_pose_2.p.y = 0.5
-        franka_pose_2.p.z = 0.0
-        franka_pose_2.r = gymapi.Quat(0.0, 0.0, 1.0, 0.0)
+        second_franka_pose = gymapi.Transform()
+        second_franka_pose.p.x = self.cfg_base.env.franka_depth
+        second_franka_pose.p.y = 0.5
+        second_franka_pose.p.z = 0.0
+        second_franka_pose.r = gymapi.Quat(0.0, 0.0, 1.0, 0.0)
 
         table_pose = gymapi.Transform()
         table_pose.p.x = 0.0
@@ -162,13 +161,12 @@ class FactoryEnvNutBolt_MARL2(FactoryBase_MARL2, FactoryABCEnv):
 
         self.env_ptrs = []
         self.franka_handles = []
-        self.franka_handles_2 = []
         self.nut_handles = []
         self.bolt_handles = []
         self.table_handles = []
         self.shape_ids = []
         self.franka_actor_ids_sim = []  # within-sim indices
-        self.franka_actor_ids_sim_2 = []  # within-sim indices
+        self.second_franka_actor_ids_sim = []  # within-sim indices
         self.nut_actor_ids_sim = []  # within-sim indices
         self.bolt_actor_ids_sim = []  # within-sim indices
         self.table_actor_ids_sim = []  # within-sim indices
@@ -185,18 +183,15 @@ class FactoryEnvNutBolt_MARL2(FactoryBase_MARL2, FactoryABCEnv):
 
             env_ptr = self.gym.create_env(self.sim, lower, upper, num_per_row)
 
-            if self.cfg_env.sim.disable_franka_collisions:                            
+            if self.cfg_env.sim.disable_franka_collisions:
                 franka_handle = self.gym.create_actor(env_ptr, franka_asset, franka_pose, 'franka', i + self.num_envs,
                                                       0, 0)
-                franka_handle_2 = self.gym.create_actor(env_ptr, franka_asset, franka_pose_2, 'franka_2', i + self.num_envs,
-                                                      0, 0)    
             else:
                 franka_handle = self.gym.create_actor(env_ptr, franka_asset, franka_pose, 'franka', i, 0, 0)
-                franka_handle_2 = self.gym.create_actor(env_ptr, franka_asset, franka_pose_2, 'franka_2', i,0, 0)                     
-
+                second_franka_handle = self.gym.create_actor(env_ptr, franka_asset, second_franka_pose, 'second_franka', i, 0, 0)
             self.franka_actor_ids_sim.append(actor_count)
             actor_count += 1
-            self.franka_actor_ids_sim_2.append(actor_count)
+            self.second_franka_actor_ids_sim.append(actor_count)
             actor_count += 1
 
             j = np.random.randint(0, len(self.cfg_env.env.desired_subassemblies))
@@ -239,25 +234,25 @@ class FactoryEnvNutBolt_MARL2(FactoryBase_MARL2, FactoryABCEnv):
             table_handle = self.gym.create_actor(env_ptr, table_asset, table_pose, 'table', i, 0, 0)
             self.table_actor_ids_sim.append(actor_count)
             actor_count += 1
-            
+
             link7_id = self.gym.find_actor_rigid_body_index(env_ptr, franka_handle, 'panda_link7', gymapi.DOMAIN_ACTOR)
             hand_id = self.gym.find_actor_rigid_body_index(env_ptr, franka_handle, 'panda_hand', gymapi.DOMAIN_ACTOR)
             left_finger_id = self.gym.find_actor_rigid_body_index(env_ptr, franka_handle, 'panda_leftfinger',
                                                                   gymapi.DOMAIN_ACTOR)
             right_finger_id = self.gym.find_actor_rigid_body_index(env_ptr, franka_handle, 'panda_rightfinger',
-                                                                   gymapi.DOMAIN_ACTOR)
+                                                                   gymapi.DOMAIN_ACTOR)                                                                   
             self.shape_ids = [link7_id, hand_id, left_finger_id, right_finger_id]
 
-            # Franka 2
-            link7_id_2 = self.gym.find_actor_rigid_body_index(env_ptr, franka_handle_2, 'panda_link7', gymapi.DOMAIN_ACTOR)
-            hand_id_2 = self.gym.find_actor_rigid_body_index(env_ptr, franka_handle_2, 'panda_hand', gymapi.DOMAIN_ACTOR)
-            left_finger_id_2 = self.gym.find_actor_rigid_body_index(env_ptr, franka_handle_2, 'panda_leftfinger',
-                                                                    gymapi.DOMAIN_ACTOR)
-            right_finger_id_2 = self.gym.find_actor_rigid_body_index(env_ptr, franka_handle_2, 'panda_rightfinger',
-                                                                    gymapi.DOMAIN_ACTOR)    
-            self.shape_ids_2 = [link7_id_2, hand_id_2, left_finger_id_2, right_finger_id_2]    
+            second_link7_id = self.gym.find_actor_rigid_body_index(env_ptr, second_franka_handle, 'second_panda_link7', gymapi.DOMAIN_ACTOR)
+            second_hand_id = self.gym.find_actor_rigid_body_index(env_ptr, second_franka_handle, 'second_panda_hand', gymapi.DOMAIN_ACTOR)
+            second_left_finger_id = self.gym.find_actor_rigid_body_index(env_ptr, second_franka_handle, 'second_panda_leftfinger',
+                                                                  gymapi.DOMAIN_ACTOR)
+            second_right_finger_id = self.gym.find_actor_rigid_body_index(env_ptr, second_franka_handle, 'second_panda_rightfinger',
+                                                                   gymapi.DOMAIN_ACTOR)
+            self.second_shape_ids = [second_link7_id, second_hand_id, second_left_finger_id, second_right_finger_id]
 
             franka_shape_props = self.gym.get_actor_rigid_shape_properties(env_ptr, franka_handle)
+            second_franka_shape_props = self.gym.get_actor_rigid_shape_properties(env_ptr, second_franka_handle)
             for shape_id in self.shape_ids:
                 franka_shape_props[shape_id].friction = self.cfg_base.env.franka_friction
                 franka_shape_props[shape_id].rolling_friction = 0.0  # default = 0.0
@@ -267,16 +262,14 @@ class FactoryEnvNutBolt_MARL2(FactoryBase_MARL2, FactoryABCEnv):
                 franka_shape_props[shape_id].thickness = 0.0  # default = 0.0
             self.gym.set_actor_rigid_shape_properties(env_ptr, franka_handle, franka_shape_props)
 
-            # Franka 2 Shape Properties
-            franka_shape_props_2 = self.gym.get_actor_rigid_shape_properties(env_ptr, franka_handle_2)
-            for shape_id in self.shape_ids_2:
-                franka_shape_props_2[shape_id].friction = self.cfg_base.env.franka_friction
-                franka_shape_props_2[shape_id].rolling_friction = 0.0  # default = 0.0
-                franka_shape_props_2[shape_id].torsion_friction = 0.0  # default = 0.0
-                franka_shape_props_2[shape_id].restitution = 0.0  # default = 0.0
-                franka_shape_props_2[shape_id].compliance = 0.0  # default = 0.0
-                franka_shape_props_2[shape_id].thickness = 0.0  # default = 0.0
-            self.gym.set_actor_rigid_shape_properties(env_ptr, franka_handle_2, franka_shape_props_2)      
+            for shape_id in self.second_shape_ids:
+                second_franka_shape_props[shape_id].friction = self.cfg_base.env.franka_friction
+                second_franka_shape_props[shape_id].rolling_friction = 0.0  # default = 0.0
+                second_franka_shape_props[shape_id].torsion_friction = 0.0  # default = 0.0
+                second_franka_shape_props[shape_id].restitution = 0.0  # default = 0.0
+                second_franka_shape_props[shape_id].compliance = 0.0  # default = 0.0
+                second_franka_shape_props[shape_id].thickness = 0.0  # default = 0.0
+            self.gym.set_actor_rigid_shape_properties(env_ptr, second_franka_handle, second_franka_shape_props)
 
             nut_shape_props = self.gym.get_actor_rigid_shape_properties(env_ptr, nut_handle)
             nut_shape_props[0].friction = self.cfg_env.env.nut_bolt_friction
@@ -306,14 +299,14 @@ class FactoryEnvNutBolt_MARL2(FactoryBase_MARL2, FactoryABCEnv):
             self.gym.set_actor_rigid_shape_properties(env_ptr, table_handle, table_shape_props)
 
             self.franka_num_dofs = self.gym.get_actor_dof_count(env_ptr, franka_handle)
-            self.franka_num_dofs_2 = self.gym.get_actor_dof_count(env_ptr, franka_handle_2)
+            self.franka_num_dofs += self.gym.get_actor_dof_count(env_ptr, second_franka_handle)
 
             self.gym.enable_actor_dof_force_sensors(env_ptr, franka_handle)
-            self.gym.enable_actor_dof_force_sensors(env_ptr, franka_handle_2)
+            self.gym.enable_actor_dof_force_sensors(env_ptr, second_franka_handle)
 
             self.env_ptrs.append(env_ptr)
             self.franka_handles.append(franka_handle)
-            self.franka_handles_2.append(franka_handle_2)
+            self.franka_handles.append(second_franka_handle)
             self.nut_handles.append(nut_handle)
             self.bolt_handles.append(bolt_handle)
             self.table_handles.append(table_handle)
@@ -322,13 +315,12 @@ class FactoryEnvNutBolt_MARL2(FactoryBase_MARL2, FactoryABCEnv):
         self.num_bodies = self.gym.get_env_rigid_body_count(env_ptr)  # per env
         self.num_dofs = self.gym.get_env_dof_count(env_ptr)  # per env
 
-
         # For setting targets
         self.franka_actor_ids_sim = torch.tensor(self.franka_actor_ids_sim, dtype=torch.int32, device=self.device)
-        self.franka_actor_ids_sim_2 = torch.tensor(self.franka_actor_ids_sim_2, dtype=torch.int32, device=self.device)
+        self.second_franka_actor_ids_sim = torch.tensor(self.second_franka_actor_ids_sim, dtype=torch.int32, device=self.device)
         self.nut_actor_ids_sim = torch.tensor(self.nut_actor_ids_sim, dtype=torch.int32, device=self.device)
         self.bolt_actor_ids_sim = torch.tensor(self.bolt_actor_ids_sim, dtype=torch.int32, device=self.device)
-
+        print ("self.franka_actor_ids_sim ", self.franka_actor_ids_sim)
         # For extracting root pos/quat
         self.nut_actor_id_env = self.gym.find_actor_index(env_ptr, 'nut', gymapi.DOMAIN_ENV)
         self.bolt_actor_id_env = self.gym.find_actor_index(env_ptr, 'bolt', gymapi.DOMAIN_ENV)
@@ -338,23 +330,25 @@ class FactoryEnvNutBolt_MARL2(FactoryBase_MARL2, FactoryABCEnv):
         self.bolt_body_id_env = self.gym.find_actor_rigid_body_index(env_ptr, bolt_handle, 'bolt', gymapi.DOMAIN_ENV)
         self.hand_body_id_env = self.gym.find_actor_rigid_body_index(env_ptr, franka_handle, 'panda_hand',
                                                                      gymapi.DOMAIN_ENV)
+        self.second_hand_body_id_env = self.gym.find_actor_rigid_body_index(env_ptr, second_franka_handle, 'panda_hand',
+                                                                     gymapi.DOMAIN_ENV)     
+
         self.left_finger_body_id_env = self.gym.find_actor_rigid_body_index(env_ptr, franka_handle, 'panda_leftfinger',
                                                                             gymapi.DOMAIN_ENV)
         self.right_finger_body_id_env = self.gym.find_actor_rigid_body_index(env_ptr, franka_handle,
                                                                              'panda_rightfinger', gymapi.DOMAIN_ENV)
         self.fingertip_centered_body_id_env = self.gym.find_actor_rigid_body_index(env_ptr, franka_handle,
                                                                                    'panda_fingertip_centered',
-                                                                                   gymapi.DOMAIN_ENV)        
+                                                                                   gymapi.DOMAIN_ENV)
 
-        self.hand_body_id_env_2 = self.gym.find_actor_rigid_body_index(env_ptr, franka_handle_2, 'panda_hand',
-                                                                     gymapi.DOMAIN_ENV)
-        self.left_finger_body_id_env_2 = self.gym.find_actor_rigid_body_index(env_ptr, franka_handle_2, 'panda_leftfinger',
+        self.second_left_finger_body_id_env = self.gym.find_actor_rigid_body_index(env_ptr, second_franka_handle, 'panda_leftfinger',
                                                                             gymapi.DOMAIN_ENV)
-        self.right_finger_body_id_env_2 = self.gym.find_actor_rigid_body_index(env_ptr, franka_handle_2,
+        self.second_right_finger_body_id_env = self.gym.find_actor_rigid_body_index(env_ptr, second_franka_handle,
                                                                              'panda_rightfinger', gymapi.DOMAIN_ENV)
-        self.fingertip_centered_body_id_env_2 = self.gym.find_actor_rigid_body_index(env_ptr, franka_handle_2,
+        self.second_fingertip_centered_body_id_env = self.gym.find_actor_rigid_body_index(env_ptr, second_franka_handle,
                                                                                    'panda_fingertip_centered',
                                                                                    gymapi.DOMAIN_ENV)
+
         # For computing body COM pos
         self.nut_heights = torch.tensor(self.nut_heights, device=self.device).unsqueeze(-1)
         self.bolt_head_heights = torch.tensor(self.bolt_head_heights, device=self.device).unsqueeze(-1)
