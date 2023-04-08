@@ -192,6 +192,7 @@ class FactoryTaskNutBoltPick_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
 
     def compute_observations(self):
         """Compute observations."""
+        # TODO: add bolt observations
 
         # Shallow copies of tensors
         obs_tensors = [self.fingertip_midpoint_pos,
