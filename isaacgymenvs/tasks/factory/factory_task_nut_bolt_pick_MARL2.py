@@ -206,6 +206,8 @@ class FactoryTaskNutBoltPick_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
             self.rew_buf[:] += lift_success * self.cfg_task.rl.success_bonus
             self.extras['successes'] = torch.mean(lift_success.float())
 
+        # TODO: add reward for bolt picking
+
     def reset_idx(self, env_ids):
         """Reset specified environments."""
 
