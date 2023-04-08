@@ -386,6 +386,7 @@ class FactoryTaskNutBoltPick_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
 
     def _get_keypoint_dist(self):
         """Get keypoint distance."""
+        # TODO: get key_point_distance of the gripper (franka_2) and the bolt
 
         keypoint_dist = torch.sum(torch.norm(self.keypoints_nut - self.keypoints_gripper, p=2, dim=-1), dim=-1)
 
