@@ -190,7 +190,7 @@ class FactoryBase_MARL2(VecTask, FactoryABCBase):
             table_options.mesh_normal_mode = gymapi.COMPUTE_PER_FACE
 
         franka_asset = self.gym.load_asset(self.sim, urdf_root, franka_file, franka_options)
-        table_asset = self.gym.create_box(self.sim, self.asset_info_franka_table.table_depth,
+        table_asset = self.gym.create_box(self.sim, self.asset_info_franka_table.table_depth*2,
                                           4.0, self.cfg_base.env.table_height,
                                           table_options)
 
@@ -560,7 +560,7 @@ class FactoryBase_MARL2(VecTask, FactoryABCBase):
         self.gym.set_dof_position_target_tensor_indexed(self.sim,
                                                         gymtorch.unwrap_tensor(self.ctrl_target_dof_pos),
                                                         gymtorch.unwrap_tensor(self.franka_actor_ids_sim),
-                                                        len(self.franka_actor_ids_sim))
+                                                        2*len(self.franka_actor_ids_sim))
 
     def _set_dof_torque(self):
         """Set Franka DOF torque to move fingertips towards target pose."""        
