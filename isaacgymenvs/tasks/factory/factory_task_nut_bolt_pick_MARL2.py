@@ -84,7 +84,7 @@ class FactoryTaskNutBoltPick_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
     def _acquire_task_tensors(self):
         """Acquire tensors."""
 
-        # Grasp pose tensors
+        # Grasp pose tensors (Nut)
         nut_grasp_heights = self.bolt_head_heights + self.nut_heights * 0.5  # nut COM
         self.nut_grasp_pos_local = nut_grasp_heights * torch.tensor([0.0, 0.0, 1.0], device=self.device).repeat(
             (self.num_envs, 1))
@@ -100,6 +100,24 @@ class FactoryTaskNutBoltPick_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
         self.keypoints_nut = torch.zeros_like(self.keypoints_gripper, device=self.device)
 
         self.identity_quat = torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).unsqueeze(0).repeat(self.num_envs,
+                                                                                                        1)
+
+        # Grasp pose tensors (Bolt)
+        bolt_grasp_heights = self.bolt_head_heights + self.nut_heights * 0.5 
+        self.bolt_grasp_pos_local = bolt_grasp_heights * torch.tensor([0.0, 0.0, 1.0], device=self.device).repeat(
+            (self.num_envs, 1))
+        self.bolt_grasp_quat_local = torch.tensor([0.0, 1.0, 0.0, 0.0], device=self.device).unsqueeze(0).repeat(
+            self.num_envs, 1)
+        
+        # Keypoint tensors
+        self.second_keypoint_offsets = self._get_keypoint_offsets(
+            self.cfg_task.rl.num_keypoints) * self.cfg_task.rl.keypoint_scale
+        self.second_keypoints_gripper = torch.zeros((self.num_envs, self.cfg_task.rl.num_keypoints, 3),
+                                                dtype=torch.float32,
+                                                device=self.device)
+        self.keypoints_bolt = torch.zeros_like(self.second_keypoints_gripper, device=self.device)
+
+        self.second_identity_quat = torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).unsqueeze(0).repeat(self.num_envs,
                                                                                                         1)
 
     def _refresh_task_tensors(self):
@@ -121,6 +139,23 @@ class FactoryTaskNutBoltPick_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
                                                                     self.nut_grasp_pos,
                                                                     self.identity_quat,
                                                                     keypoint_offset.repeat(self.num_envs, 1))[1]
+            
+        # Compute pose of bolt grasping frame
+        self.bolt_grasp_quat, self.bolt_grasp_pos = torch_jit_utils.tf_combine(self.bolt_quat,
+                                                                                self.bolt_pos,
+                                                                                self.bolt_grasp_quat_local,
+                                                                                self.bolt_grasp_pos_local)
+        
+        # Compute pos of keypoints on gripper and bolt in world frame
+        for idx, second_keypoint_offset in enumerate(self.second_keypoint_offsets):
+            self.second_keypoints_gripper[:, idx] = torch_jit_utils.tf_combine(self.second_fingertip_midpoint_quat,
+                                                                                self.second_fingertip_midpoint_pos,
+                                                                                self.second_identity_quat,
+                                                                                second_keypoint_offset.repeat(self.num_envs, 1))[1]
+            self.keypoints_bolt[:, idx] = torch_jit_utils.tf_combine(self.bolt_grasp_quat,
+                                                                        self.bolt_grasp_pos,
+                                                                        self.second_identity_quat,
+                                                                        second_keypoint_offset.repeat(self.num_envs, 1))[1]
 
     def pre_physics_step(self, actions):
         """Reset environments. Apply actions from policy. Simulation step called after this method."""
