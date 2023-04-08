@@ -26,10 +26,10 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-"""Factory: Class for nut-bolt pick task.
+"""Factory: Class for Multi-Agent nut-bolt pick task.
 
 Inherits nut-bolt environment class and abstract task class (not enforced). Can be executed with
-python train.py task=FactoryTaskNutBoltPick
+python train.py task=FactoryTaskNutBoltPick_MARL2
 """
 
 import hydra
