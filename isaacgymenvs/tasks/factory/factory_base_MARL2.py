@@ -79,33 +79,47 @@ class FactoryBase_MARL2(VecTask, FactoryABCBase):
         self.asset_info_franka_table = self.asset_info_franka_table['']['']['']['']['']['']['assets']['factory']['yaml']  # strip superfluous nesting
 
 
+    # def create_sim(self):
+    #     """Set sim and PhysX params. Create sim object, ground plane, and envs."""
+
+    #     self.sim_params.dt = self.cfg_base.sim.dt
+    #     self.sim_params.substeps = self.cfg_base.sim.num_substeps
+    #     self.sim_params.up_axis = gymapi.UP_AXIS_Z
+    #     self.sim_params.gravity.x = 0
+    #     self.sim_params.gravity.y = 0
+    #     self.sim_params.gravity.z = -self.cfg_base.sim.gravity_mag
+    #     if self.cfg_base.mode.export_scene:
+    #         self.sim_params.use_gpu_pipeline = False
+    #     else:
+    #         self.sim_params.use_gpu_pipeline = True
+
+    #     self.sim_params.physx.use_gpu = True
+    #     self.sim_params.physx.solver_type = 1  # default = 1 (Temporal Gauss-Seidel)
+    #     self.sim_params.physx.num_position_iterations = self.cfg_base.sim.num_pos_iters
+    #     self.sim_params.physx.num_velocity_iterations = self.cfg_base.sim.num_vel_iters
+    #     self.sim_params.physx.rest_offset = 0.0  # default = 0.001
+    #     self.sim_params.physx.contact_offset = 0.005  # default = 0.02
+    #     self.sim_params.physx.bounce_threshold_velocity = 0.2  # default = 0.01
+    #     self.sim_params.physx.max_depenetration_velocity = 5.0  # default = 100.0
+    #     self.sim_params.physx.friction_offset_threshold = 0.01  # default = 0.04
+    #     self.sim_params.physx.friction_correlation_distance = 0.00625  # default = 0.025
+
+    #     self.sim_params.physx.max_gpu_contact_pairs = 1024 ** 2  # default = 1024^2
+    #     self.sim_params.physx.default_buffer_size_multiplier = 8  # default = 1
+
+    #     self.sim = super().create_sim(compute_device=self.device_id,
+    #                                   graphics_device=self.graphics_device_id,
+    #                                   physics_engine=self.physics_engine,
+    #                                   sim_params=self.sim_params)
+    #     self._create_ground_plane()
+    #     self.create_envs()  # defined in subclass
+
+
     def create_sim(self):
         """Set sim and PhysX params. Create sim object, ground plane, and envs."""
 
-        self.sim_params.dt = self.cfg_base.sim.dt
-        self.sim_params.substeps = self.cfg_base.sim.num_substeps
-        self.sim_params.up_axis = gymapi.UP_AXIS_Z
-        self.sim_params.gravity.x = 0
-        self.sim_params.gravity.y = 0
-        self.sim_params.gravity.z = -self.cfg_base.sim.gravity_mag
         if self.cfg_base.mode.export_scene:
             self.sim_params.use_gpu_pipeline = False
-        else:
-            self.sim_params.use_gpu_pipeline = True
-
-        self.sim_params.physx.use_gpu = True
-        self.sim_params.physx.solver_type = 1  # default = 1 (Temporal Gauss-Seidel)
-        self.sim_params.physx.num_position_iterations = self.cfg_base.sim.num_pos_iters
-        self.sim_params.physx.num_velocity_iterations = self.cfg_base.sim.num_vel_iters
-        self.sim_params.physx.rest_offset = 0.0  # default = 0.001
-        self.sim_params.physx.contact_offset = 0.005  # default = 0.02
-        self.sim_params.physx.bounce_threshold_velocity = 0.2  # default = 0.01
-        self.sim_params.physx.max_depenetration_velocity = 5.0  # default = 100.0
-        self.sim_params.physx.friction_offset_threshold = 0.01  # default = 0.04
-        self.sim_params.physx.friction_correlation_distance = 0.00625  # default = 0.025
-
-        self.sim_params.physx.max_gpu_contact_pairs = 1024 ** 2  # default = 1024^2
-        self.sim_params.physx.default_buffer_size_multiplier = 8  # default = 1
 
         self.sim = super().create_sim(compute_device=self.device_id,
                                       graphics_device=self.graphics_device_id,
@@ -177,7 +191,7 @@ class FactoryBase_MARL2(VecTask, FactoryABCBase):
 
         franka_asset = self.gym.load_asset(self.sim, urdf_root, franka_file, franka_options)
         table_asset = self.gym.create_box(self.sim, self.asset_info_franka_table.table_depth,
-                                          self.asset_info_franka_table.table_width, self.cfg_base.env.table_height,
+                                          4.0, self.cfg_base.env.table_height,
                                           table_options)
 
         return franka_asset, table_asset
@@ -338,8 +352,8 @@ class FactoryBase_MARL2(VecTask, FactoryABCBase):
         self.gym.refresh_net_contact_force_tensor(self.sim)
         self.gym.refresh_jacobian_tensors(self.sim)
         self.gym.refresh_mass_matrix_tensors(self.sim)        
-        print ("self.arm_mass_matrix ", self.mass_matrix[0])
-        print ("self.second_mass_matrix ", self.second_mass_matrix[0])
+        # print ("self.arm_mass_matrix ", self.mass_matrix[0])
+        # print ("self.second_mass_matrix ", self.second_mass_matrix[0])
         self.finger_midpoint_pos = (self.left_finger_pos + self.right_finger_pos) * 0.5
         self.fingertip_midpoint_pos = fc.translate_along_local_z(pos=self.finger_midpoint_pos,
                                                                  quat=self.hand_quat,

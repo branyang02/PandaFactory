@@ -76,8 +76,10 @@ class FactoryEnvNutBolt_MARL2(FactoryBase_MARL2, FactoryABCEnv):
     def create_envs(self):
         """Set env options. Import assets. Create actors."""
 
-        lower = gymapi.Vec3(-self.cfg_base.env.env_spacing, -self.cfg_base.env.env_spacing, 0.0)
-        upper = gymapi.Vec3(self.cfg_base.env.env_spacing, self.cfg_base.env.env_spacing, self.cfg_base.env.env_spacing)
+        spacing = 1.0
+
+        lower = gymapi.Vec3(-spacing, -spacing, 0.0)
+        upper = gymapi.Vec3(spacing, spacing, spacing)
         num_per_row = int(np.sqrt(self.num_envs))
 
         franka_asset, table_asset = self.import_franka_assets()

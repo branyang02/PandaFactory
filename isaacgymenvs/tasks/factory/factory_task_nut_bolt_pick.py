@@ -356,6 +356,7 @@ class FactoryTaskNutBoltPick(FactoryEnvNutBolt, FactoryABCTask):
 
         delta_hand_pose = torch.zeros((self.num_envs, self.cfg_task.env.numActions),
                                       device=self.device)  # No hand motion
+
         self._apply_actions_as_ctrl_targets(delta_hand_pose, gripper_dof_pos, do_scale=False)
 
         # Step sim
