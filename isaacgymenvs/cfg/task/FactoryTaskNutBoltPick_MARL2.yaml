@@ -30,7 +30,7 @@ randomize:
     nut_pos_xy_initial: [0.0, -0.3]  # initial XY position of nut on table
     nut_pos_xy_initial_noise: [0.1, 0.1]  # noise on nut position
     # bolt_pos_xy_initial: [0.0, 0.0]  # initial position of bolt on table
-    bolt_pos_xy_initial: [0.0, 1.0]  # initial position of bolt on table
+    bolt_pos_xy_initial: [0.0, 0.5]  # initial position of bolt on table
     bolt_pos_xy_noise: [0.1, 0.1]  # noise on bolt position
 
 rl:
