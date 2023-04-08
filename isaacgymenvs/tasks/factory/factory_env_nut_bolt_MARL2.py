@@ -373,10 +373,14 @@ class FactoryEnvNutBolt_MARL2(FactoryBase_MARL2, FactoryABCEnv):
 
         self.bolt_pos = self.root_pos[:, self.bolt_actor_id_env, 0:3]
         self.bolt_quat = self.root_quat[:, self.bolt_actor_id_env, 0:4]
+        self.bolt_linvel = self.root_linvel[:, self.bolt_actor_id_env, 0:3]
+        self.bolt_angvel = self.root_angvel[:, self.bolt_actor_id_env, 0:3]
 
         self.nut_force = self.contact_force[:, self.nut_body_id_env, 0:3]
 
         self.bolt_force = self.contact_force[:, self.bolt_body_id_env, 0:3]
+
+        # Nut COM
 
         self.nut_com_pos = fc.translate_along_local_z(pos=self.nut_pos,
                                                       quat=self.nut_quat,
@@ -387,6 +391,19 @@ class FactoryEnvNutBolt_MARL2(FactoryBase_MARL2, FactoryABCEnv):
                                                             (self.nut_com_pos - self.nut_pos),
                                                             dim=1)
         self.nut_com_angvel = self.nut_angvel  # always equal
+        
+        # Bolt COM
+
+        self.bolt_com_pos = fc.translate_along_local_z(pos=self.bolt_pos,
+                                                        quat=self.bolt_quat,
+                                                        offset=self.bolt_head_heights + self.nut_heights * 0.5,
+                                                        device=self.device)
+        self.bolt_com_quat = self.bolt_quat  # always equal
+        self.bolt_com_linvel = self.bolt_linvel + torch.cross(self.bolt_angvel,
+                                                                (self.bolt_com_pos - self.bolt_pos),
+                                                                dim=1)
+        self.bolt_com_angvel = self.bolt_angvel  # always equal
+
 
     def refresh_env_tensors(self):
         """Refresh tensors."""
@@ -399,3 +416,11 @@ class FactoryEnvNutBolt_MARL2(FactoryBase_MARL2, FactoryABCEnv):
         self.nut_com_linvel = self.nut_linvel + torch.cross(self.nut_angvel,
                                                             (self.nut_com_pos - self.nut_pos),
                                                             dim=1)
+        
+        self.bolt_com_pos = fc.translate_along_local_z(pos=self.bolt_pos,
+                                                        quat=self.bolt_quat,
+                                                        offset=self.bolt_head_heights + self.nut_heights * 0.5,
+                                                        device=self.device)
+        self.bolt_com_linvel = self.bolt_linvel + torch.cross(self.bolt_angvel,
+                                                                (self.bolt_com_pos - self.bolt_pos),
+                                                                dim=1)
