@@ -13,7 +13,7 @@ sim:
 
 env:
     numEnvs: ${resolve_default:128,${...num_envs}}
-    numObservations: 33 # default numActions: 20
+    numObservations: 40 # default numActions: 20
     numActions: 24 # default numActions: 12
 
     close_and_lift: True  # close gripper and lift after last step of episode

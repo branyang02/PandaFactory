@@ -204,7 +204,9 @@ class FactoryTaskNutBoltPick_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
                        self.second_fingertip_midpoint_linvel,
                        self.second_fingertip_midpoint_angvel,
                        self.nut_grasp_pos,
-                       self.nut_grasp_quat]
+                       self.nut_grasp_quat,
+                       self.bolt_grasp_pos,
+                       self.bolt_grasp_quat]
 
         self.obs_buf = torch.cat(obs_tensors, dim=-1)  # shape = (num_envs, num_observations)
 
