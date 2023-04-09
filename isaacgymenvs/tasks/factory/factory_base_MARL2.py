@@ -602,7 +602,7 @@ class FactoryBase_MARL2(VecTask, FactoryABCBase):
         self.gym.set_dof_actuation_force_tensor_indexed(self.sim,
                                                         gymtorch.unwrap_tensor(torch.cat((self.dof_torque, self.second_dof_torque), dim=-1)),
                                                         gymtorch.unwrap_tensor(torch.sort(torch.cat((self.franka_actor_ids_sim, self.second_franka_actor_ids_sim), dim=-1)).values.flatten()),
-                                                        len(self.franka_actor_ids_sim))
+                                                        2*len(self.franka_actor_ids_sim))
 
     def enable_gravity(self, gravity_mag):
         """Enable gravity."""
