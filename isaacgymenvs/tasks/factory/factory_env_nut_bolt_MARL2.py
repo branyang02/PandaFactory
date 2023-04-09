@@ -110,7 +110,7 @@ class FactoryEnvNutBolt_MARL2(FactoryBase_MARL2, FactoryABCEnv):
 
         bolt_options = gymapi.AssetOptions()
         bolt_options.flip_visual_attachments = False
-        bolt_options.fix_base_link = True
+        bolt_options.fix_base_link = False
         bolt_options.thickness = 0.0  # default = 0.02
         bolt_options.armature = 0.0  # default = 0.0
         bolt_options.use_physx_armature = True
