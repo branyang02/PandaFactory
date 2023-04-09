@@ -229,11 +229,27 @@ class FactoryTaskNutBoltPick_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
     def _update_rew_buf(self):
         """Compute reward at current timestep."""
 
-        keypoint_reward = -self._get_keypoint_dist()
-        action_penalty = torch.norm(self.actions, p=2, dim=-1) * self.cfg_task.rl.action_penalty_scale
+        Franka_1_action = self.actions[:, :12]
+        Franka_2_action = self.actions[:, 12:]
 
-        self.rew_buf[:] = keypoint_reward * self.cfg_task.rl.keypoint_reward_scale \
-                          - action_penalty * self.cfg_task.rl.action_penalty_scale
+        keypoint_reward = -self._get_keypoint_dist()
+        action_penalty = torch.norm(Franka_1_action, p=2, dim=-1) * self.cfg_task.rl.action_penalty_scale
+
+        # reward for bolt picking     
+        second_keypoint_reward = -self._second_get_keypoint_dist()
+        second_action_penalty = torch.norm(Franka_2_action, p=2, dim=-1) * self.cfg_task.rl.action_penalty_scale
+
+        # print("keypoint_reward: ", keypoint_reward)
+        # print("second_keypoint_reward: ", second_keypoint_reward)
+
+        # print("action_penalty: ", action_penalty)
+        # print("second_action_penalty: ", second_action_penalty)
+
+        # Added two Pandas rewards together
+        self.rew_buf[:] = (keypoint_reward * self.cfg_task.rl.keypoint_reward_scale \
+                          - action_penalty * self.cfg_task.rl.action_penalty_scale) \
+                          + (second_keypoint_reward * self.cfg_task.rl.keypoint_reward_scale \
+                    - second_action_penalty * self.cfg_task.rl.action_penalty_scale)
 
         # In this policy, episode length is constant across all envs
         is_last_step = (self.progress_buf[0] == self.max_episode_length - 1)
@@ -243,8 +259,6 @@ class FactoryTaskNutBoltPick_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
             lift_success = self._check_lift_success(height_multiple=3.0)
             self.rew_buf[:] += lift_success * self.cfg_task.rl.success_bonus
             self.extras['successes'] = torch.mean(lift_success.float())
-
-        # TODO: add reward for bolt picking
 
     def reset_idx(self, env_ids):
         """Reset specified environments."""
@@ -429,6 +443,13 @@ class FactoryTaskNutBoltPick_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
         keypoint_dist = torch.sum(torch.norm(self.keypoints_nut - self.keypoints_gripper, p=2, dim=-1), dim=-1)
 
         return keypoint_dist
+    
+    def _second_get_keypoint_dist(self):
+        """Get keypoint distance of Franka_2."""
+
+        keypoint_dist = torch.sum(torch.norm(self.keypoints_bolt - self.second_keypoints_gripper, p=2, dim=-1), dim=-1)
+
+        return keypoint_dist
 
     def _close_gripper(self, sim_steps=20):
         """Fully close gripper using controller. Called outside RL loop (i.e., after last step of episode)."""
@@ -464,10 +485,13 @@ class FactoryTaskNutBoltPick_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
     def _check_lift_success(self, height_multiple):
         """Check if nut is above table by more than specified multiple times height of nut."""
 
+        # success if both frankas lift the nut and bolt
         lift_success = torch.where(
-            self.nut_pos[:, 2] > self.cfg_base.env.table_height + self.nut_heights.squeeze(-1) * height_multiple,
+            (self.nut_pos[:, 2] > self.cfg_base.env.table_height + self.nut_heights.squeeze(-1) * height_multiple) & 
+            (self.bolt_pos[:, 2] > self.cfg_base.env.table_height + self.bolt_head_heights.squeeze(-1) * height_multiple),
             torch.ones((self.num_envs,), device=self.device),
             torch.zeros((self.num_envs,), device=self.device))
+
 
         return lift_success
 
