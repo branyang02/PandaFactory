@@ -190,7 +190,7 @@ class FactoryBase_MARL2(VecTask, FactoryABCBase):
             table_options.mesh_normal_mode = gymapi.COMPUTE_PER_FACE
 
         franka_asset = self.gym.load_asset(self.sim, urdf_root, franka_file, franka_options)
-        table_asset = self.gym.create_box(self.sim, self.asset_info_franka_table.table_depth*2,
+        table_asset = self.gym.create_box(self.sim, self.asset_info_franka_table.table_depth,
                                           4.0, self.cfg_base.env.table_height,
                                           table_options)
 
