@@ -220,11 +220,24 @@ class FactoryTaskNutBoltPlace_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
     def _reset_franka(self, env_ids):
         """Reset DOF states and DOF targets of Franka."""
 
+        # NOTE: Original Concat:
+        # self.dof_pos[env_ids] = \
+        #     torch.cat((torch.tensor(self.cfg_task.randomize.franka_arm_initial_dof_pos, device=self.device).repeat((len(env_ids), 1)),
+        #                (self.nut_widths_max * 0.5) * 1.1,  # buffer on gripper DOF pos to prevent initial contact
+        #                (self.nut_widths_max * 0.5) * 1.1),  # buffer on gripper DOF pos to prevent initial contact
+        #               dim=-1)  # shape = (num_envs, num_dofs)
+    
         self.dof_pos[env_ids] = \
-            torch.cat((torch.tensor(self.cfg_task.randomize.franka_arm_initial_dof_pos, device=self.device).repeat((len(env_ids), 1)),
-                       (self.nut_widths_max * 0.5) * 1.1,  # buffer on gripper DOF pos to prevent initial contact
-                       (self.nut_widths_max * 0.5) * 1.1),  # buffer on gripper DOF pos to prevent initial contact
-                      dim=-1)  # shape = (num_envs, num_dofs)
+            torch.cat(
+                (torch.tensor(self.cfg_task.randomize.franka_arm_initial_dof_pos, device=self.device).repeat((len(env_ids), 1)),
+                (self.nut_widths_max * 0.5) * 1.1,  # buffer on gripper DOF pos to prevent initial contact
+                (self.nut_widths_max * 0.5) * 1.1,
+                torch.tensor(self.cfg_task.randomize.franka_arm_initial_dof_pos, device=self.device).repeat((len(env_ids), 1)),
+                (self.nut_widths_max * 0.5) * 1.1,  # buffer on gripper DOF pos to prevent initial contact
+                (self.nut_widths_max * 0.5) * 1.1
+                ), 
+            dim=-1)  # shape = (num_envs, num_dofs)
+        
         self.dof_vel[env_ids] = 0.0  # shape = (num_envs, num_dofs)
         self.ctrl_target_dof_pos[env_ids] = self.dof_pos[env_ids]
 
