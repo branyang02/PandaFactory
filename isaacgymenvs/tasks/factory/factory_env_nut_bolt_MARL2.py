@@ -65,7 +65,7 @@ class FactoryEnvNutBolt_MARL2(FactoryBase_MARL2, FactoryABCEnv):
         cs = hydra.core.config_store.ConfigStore.instance()
         cs.store(name='factory_schema_config_env', node=FactorySchemaConfigEnv)
 
-        config_path = os.path.join('task', 'FactoryEnvNutBolt.yaml')  # relative to Hydra search path (cfg dir)
+        config_path = os.path.join('task', 'FactoryEnvNutBolt_MARL2.yaml')  # relative to Hydra search path (cfg dir)
         self.cfg_env = hydra.compose(config_name=config_path)
         self.cfg_env = self.cfg_env['task']  # strip superfluous nesting
 
