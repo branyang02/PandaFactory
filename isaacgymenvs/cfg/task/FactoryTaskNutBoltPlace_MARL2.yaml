@@ -14,7 +14,7 @@ sim:
 env:
     numEnvs: ${resolve_default:128,${...num_envs}}
     numObservations: 27
-    numActions: 12
+    numActions: 24  # default numActions: 12
 
     num_gripper_move_sim_steps: 40  # number of timesteps to reserve for moving gripper before first step of episode
     num_gripper_close_sim_steps: 50  # number of timesteps to reserve for closing gripper onto nut during each reset
