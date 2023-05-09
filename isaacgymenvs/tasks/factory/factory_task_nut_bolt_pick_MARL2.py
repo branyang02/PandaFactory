@@ -77,7 +77,7 @@ class FactoryTaskNutBoltPick_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
         self.asset_info_insertion = hydra.compose(config_name=asset_info_path)
         self.asset_info_insertion = self.asset_info_insertion['']['']['']['']['']['']['assets']['factory']['yaml']  # strip superfluous nesting
 
-        ppo_path = os.path.join('train/FactoryTaskNutBoltPickPPO.yaml')  # relative to Gym's Hydra search path (cfg dir)
+        ppo_path = os.path.join('train/FactoryTaskNutBoltPick_MARL2PPO.yaml')  # relative to Gym's Hydra search path (cfg dir)
         self.cfg_ppo = hydra.compose(config_name=ppo_path)
         self.cfg_ppo = self.cfg_ppo['train']  # strip superfluous nesting
 
