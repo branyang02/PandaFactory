@@ -342,6 +342,7 @@ class FactoryTaskNutBoltPlace_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
         self.gym.viewer_camera_look_at(self.viewer, None, cam_pos, cam_target)
 
     def _apply_actions_as_ctrl_targets(self, actions, ctrl_target_gripper_dof_pos, do_scale):
+        print("hererere")
         """Apply actions from policy as position/rotation targets."""
 
         # Interpret actions as target pos displacements and set pos target
@@ -350,10 +351,20 @@ class FactoryTaskNutBoltPlace_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
             pos_actions = pos_actions @ torch.diag(torch.tensor(self.cfg_task.rl.pos_action_scale, device=self.device))
         self.ctrl_target_fingertip_midpoint_pos = self.fingertip_midpoint_pos + pos_actions
 
+        second_pos_actions = actions[:, 12:15]
+        if do_scale:
+            second_pos_actions = second_pos_actions @ torch.diag(torch.tensor(self.cfg_task.rl.pos_action_scale, device=self.device))
+        self.second_ctrl_target_fingertip_midpoint_pos = self.second_fingertip_midpoint_pos + second_pos_actions  
+
+
         # Interpret actions as target rot (axis-angle) displacements
         rot_actions = actions[:, 3:6]
         if do_scale:
             rot_actions = rot_actions @ torch.diag(torch.tensor(self.cfg_task.rl.rot_action_scale, device=self.device))
+
+        second_rot_actions = actions[:, 15:18]
+        if do_scale:
+            second_rot_actions = second_rot_actions @ torch.diag(torch.tensor(self.cfg_task.rl.rot_action_scale, device=self.device))
 
         # Convert to quat and set rot target
         angle = torch.norm(rot_actions, p=2, dim=-1)
@@ -366,21 +377,44 @@ class FactoryTaskNutBoltPlace_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
                                                                                                          1))
         self.ctrl_target_fingertip_midpoint_quat = torch_utils.quat_mul(rot_actions_quat, self.fingertip_midpoint_quat)
 
+        second_angle = torch.norm(second_rot_actions, p=2, dim=-1)
+        second_axis = second_rot_actions / second_angle.unsqueeze(-1)
+        second_rot_actions_quat = torch_utils.quat_from_angle_axis(second_angle, second_axis)
+        if self.cfg_task.rl.clamp_rot:
+            second_rot_actions_quat = torch.where(second_angle.unsqueeze(-1).repeat(1, 4) > self.cfg_task.rl.clamp_rot_thresh,
+                                           second_rot_actions_quat,
+                                           torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).repeat(self.num_envs,
+                                                                                                         1))
+        self.second_ctrl_target_fingertip_midpoint_quat = torch_utils.quat_mul(second_rot_actions_quat, self.second_fingertip_midpoint_quat)
+
         if self.cfg_ctrl['do_force_ctrl']:
             # Interpret actions as target forces and target torques
             force_actions = actions[:, 6:9]
+            second_force_actions = actions[:, 18:21]
             if do_scale:
                 force_actions = force_actions @ torch.diag(
                     torch.tensor(self.cfg_task.rl.force_action_scale, device=self.device))
+            if do_scale:
+                second_force_actions = second_force_actions @ torch.diag(
+                    torch.tensor(self.cfg_task.rl.force_action_scale, device=self.device))
 
             torque_actions = actions[:, 9:12]
+            second_torque_actions = actions[:, 21:24]
             if do_scale:
                 torque_actions = torque_actions @ torch.diag(
                     torch.tensor(self.cfg_task.rl.torque_action_scale, device=self.device))
+            if do_scale:
+                second_torque_actions = second_torque_actions @ torch.diag(
+                    torch.tensor(self.cfg_task.rl.torque_action_scale, device=self.device))
 
             self.ctrl_target_fingertip_contact_wrench = torch.cat((force_actions, torque_actions), dim=-1)
+            self.second_ctrl_target_fingertip_contact_wrench = torch.cat((second_force_actions, second_torque_actions), dim=-1)
+
 
         self.ctrl_target_gripper_dof_pos = ctrl_target_gripper_dof_pos
+        self.second_ctrl_target_gripper_dof_pos = ctrl_target_gripper_dof_pos
+
+        
 
         self.generate_ctrl_signals()
 
