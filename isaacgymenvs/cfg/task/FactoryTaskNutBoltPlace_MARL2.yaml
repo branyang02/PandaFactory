@@ -26,7 +26,9 @@ randomize:
     fingertip_midpoint_rot_initial: [3.1416, 0, 3.1416]  # initial rotation of fingertips (Euler)
     fingertip_midpoint_rot_noise: [0.3, 0.3, 1]  # noise on rotation
     nut_noise_pos_in_gripper: [0.0, 0.0, 0.01]  # noise on nut position within gripper
+    bolt_noise_pos_in_gripper: [0.0, 0.0, 0.01]  # noise on bolt position within gripper
     nut_noise_rot_in_gripper: 0.0  # noise on nut rotation within gripper
+    bolt_noise_rot_in_gripper: 0.0  # noise on bolt rotation within gripper
     bolt_pos_xy_initial: [0.0, 0.0]  # initial XY position of nut on table
     bolt_pos_xy_noise: [0.1, 0.1]  # noise on nut position
 

@@ -267,7 +267,14 @@ class FactoryTaskNutBoltPlace_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
         self.root_pos[env_ids, self.nut_actor_id_env, 1] = 0.0
         fingertip_midpoint_pos_reset = 0.58781  # self.fingertip_midpoint_pos at reset
         nut_base_pos_local = self.bolt_head_heights.squeeze(-1)
-        self.root_pos[env_ids, self.nut_actor_id_env, 2] = fingertip_midpoint_pos_reset - nut_base_pos_local
+        self.root_pos[env_ids, self.nut_actor_id_env, 2] = fingertip_midpoint_pos_reset - nut_base_pos_local  # 0.57181
+
+        # Randomize root state of bolt within second_gripper
+        self.root_pos[env_ids, self.bolt_actor_id_env, 0] = 0.0
+        self.root_pos[env_ids, self.bolt_actor_id_env, 1] = 0.5  # second_franka_pose.p.y = 0.5
+        self.root_pos[env_ids, self.bolt_actor_id_env, 2] = torch.tensor([0.57181 for _ in range(len(env_ids))]).to(self.device)
+
+
 
         nut_noise_pos_in_gripper = \
             2 * (torch.rand((self.num_envs, 3), dtype=torch.float32, device=self.device) - 0.5)  # [-1, 1]
@@ -283,20 +290,35 @@ class FactoryTaskNutBoltPlace_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
         nut_rot_quat = torch_utils.quat_from_euler_xyz(nut_rot_euler[:, 0], nut_rot_euler[:, 1], nut_rot_euler[:, 2])
         self.root_quat[env_ids, self.nut_actor_id_env] = nut_rot_quat
 
-        # Randomize root state of bolt
-        bolt_noise_xy = 2 * (torch.rand((self.num_envs, 2), dtype=torch.float32, device=self.device) - 0.5)  # [-1, 1]
-        bolt_noise_xy = bolt_noise_xy @ torch.diag(
-            torch.tensor(self.cfg_task.randomize.bolt_pos_xy_noise, dtype=torch.float32, device=self.device))
-        self.root_pos[env_ids, self.bolt_actor_id_env, 0] = self.cfg_task.randomize.bolt_pos_xy_initial[0] + \
-                                                            bolt_noise_xy[env_ids, 0]
-        self.root_pos[env_ids, self.bolt_actor_id_env, 1] = self.cfg_task.randomize.bolt_pos_xy_initial[1] + \
-                                                            bolt_noise_xy[env_ids, 1]
-        self.root_pos[env_ids, self.bolt_actor_id_env, 2] = self.cfg_base.env.table_height
-        self.root_quat[env_ids, self.bolt_actor_id_env] = torch.tensor([0.0, 0.0, 0.0, 1.0], dtype=torch.float32,
-                                                                       device=self.device).repeat(len(env_ids), 1)
+        bolt_noise_pos_in_gripper = \
+            2 * (torch.rand((self.num_envs, 3), dtype=torch.float32, device=self.device) - 0.5)  # [-1, 1]
+        bolt_noise_pos_in_gripper = bolt_noise_pos_in_gripper @ torch.diag(
+            torch.tensor(self.cfg_task.randomize.bolt_noise_pos_in_gripper, device=self.device))
+        self.root_pos[env_ids, self.bolt_actor_id_env, :] += bolt_noise_pos_in_gripper[env_ids]
 
-        self.root_linvel[env_ids, self.bolt_actor_id_env] = 0.0
-        self.root_angvel[env_ids, self.bolt_actor_id_env] = 0.0
+        bolt_rot_euler = torch.tensor([0.0, 0.0, math.pi * 0.5], device=self.device).repeat(len(env_ids), 1)
+        bolt_noise_rot_in_gripper = \
+            2 * (torch.rand(self.num_envs, dtype=torch.float32, device=self.device) - 0.5)  # [-1, 1]
+        bolt_noise_rot_in_gripper *= self.cfg_task.randomize.bolt_noise_rot_in_gripper
+        bolt_rot_euler[:, 2] += bolt_noise_rot_in_gripper
+        bolt_rot_quat = torch_utils.quat_from_euler_xyz(bolt_rot_euler[:, 0], bolt_rot_euler[:, 1], bolt_rot_euler[:, 2])
+        self.root_quat[env_ids, self.bolt_actor_id_env] = bolt_rot_quat
+
+
+        # # Randomize root state of bolt
+        # bolt_noise_xy = 2 * (torch.rand((self.num_envs, 2), dtype=torch.float32, device=self.device) - 0.5)  # [-1, 1]
+        # bolt_noise_xy = bolt_noise_xy @ torch.diag(
+        #     torch.tensor(self.cfg_task.randomize.bolt_pos_xy_noise, dtype=torch.float32, device=self.device))
+        # self.root_pos[env_ids, self.bolt_actor_id_env, 0] = self.cfg_task.randomize.bolt_pos_xy_initial[0] + \
+        #                                                     bolt_noise_xy[env_ids, 0]
+        # self.root_pos[env_ids, self.bolt_actor_id_env, 1] = self.cfg_task.randomize.bolt_pos_xy_initial[1] + \
+        #                                                     bolt_noise_xy[env_ids, 1]
+        # self.root_pos[env_ids, self.bolt_actor_id_env, 2] = self.cfg_base.env.table_height
+        # self.root_quat[env_ids, self.bolt_actor_id_env] = torch.tensor([0.0, 0.0, 0.0, 1.0], dtype=torch.float32,
+        #                                                                device=self.device).repeat(len(env_ids), 1)
+
+        # self.root_linvel[env_ids, self.bolt_actor_id_env] = 0.0
+        # self.root_angvel[env_ids, self.bolt_actor_id_env] = 0.0
 
         nut_bolt_actor_ids_sim = torch.cat((self.nut_actor_ids_sim[env_ids],
                                             self.bolt_actor_ids_sim[env_ids]),
