@@ -94,10 +94,11 @@ class FactoryTaskNutBoltPlace_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
         # Keypoint tensors
         self.keypoint_offsets = \
             self._get_keypoint_offsets(self.cfg_task.rl.num_keypoints) * self.cfg_task.rl.keypoint_scale
-        self.keypoints_nut = torch.zeros((self.num_envs, self.cfg_task.rl.num_keypoints, 3),
+        self.keypoints_nut = torch.zeros((self.num_envs, self.cfg_task.rl.num_keypoints, 3),  # [128,4,3]
                                          dtype=torch.float32,
                                          device=self.device)
-        self.keypoints_bolt = torch.zeros_like(self.keypoints_nut, device=self.device)
+        self.keypoints_bolt = torch.zeros_like(self.keypoints_nut, device=self.device)  # [128,4,3]
+
 
         self.identity_quat = \
             torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1)
@@ -150,6 +151,10 @@ class FactoryTaskNutBoltPlace_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
                        self.fingertip_midpoint_quat,
                        self.fingertip_midpoint_linvel,
                        self.fingertip_midpoint_angvel,
+                       self.second_fingertip_midpoint_pos,
+                       self.second_fingertip_midpoint_quat,
+                       self.second_fingertip_midpoint_linvel,
+                       self.second_fingertip_midpoint_angvel,
                        self.nut_pos,
                        self.nut_quat,
                        self.bolt_pos,

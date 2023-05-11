@@ -13,7 +13,7 @@ sim:
 
 env:
     numEnvs: ${resolve_default:128,${...num_envs}}
-    numObservations: 27
+    numObservations: 40 # default numActions: 20
     numActions: 24  # default numActions: 12
 
     num_gripper_move_sim_steps: 40  # number of timesteps to reserve for moving gripper before first step of episode
