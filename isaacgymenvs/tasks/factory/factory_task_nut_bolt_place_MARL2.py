@@ -118,6 +118,8 @@ class FactoryTaskNutBoltPlace_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
                                                                      self.bolt_pos,
                                                                      self.identity_quat,
                                                                      (keypoint_offset + self.bolt_tip_pos_local))[1]
+        self.keypoints_bolt_quat = self.bolt_quat
+        
 
     def pre_physics_step(self, actions):
         """Reset environments. Apply actions from policy. Simulation step called after this method."""
@@ -166,11 +168,23 @@ class FactoryTaskNutBoltPlace_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
         self.obs_buf = torch.cat(obs_tensors, dim=-1)  # shape = (num_envs, num_observations)
 
         return self.obs_buf
+    
+    def _is_bolt_straight_up(self):
+        """Check if bolt is fallen."""
+        bolt_straight = torch.zeros(
+            self.num_envs, device=self.device, dtype=torch.bool)
+        threshold = 0.1
+        target_quat = torch.tensor([0.0, 0.0, 0.0, 1.0]).to(self.device)
+        for idx, actual_bolt_quat in enumerate(self.keypoints_bolt_quat):
+            is_straight_up = torch.all(torch.abs(actual_bolt_quat - target_quat) < threshold)
+            bolt_straight[idx] = is_straight_up
+        return bolt_straight
+
+
 
     def compute_reward(self):
         """Update reward and reset buffers."""
 
-        # TODO: Add reward for placing nut on bolt
         self._update_reset_buf()
         self._update_rew_buf()
 
@@ -185,20 +199,31 @@ class FactoryTaskNutBoltPlace_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
     def _update_rew_buf(self):
         """Compute reward at current timestep."""
 
+        bolt_straight = self._is_bolt_straight_up()
+
         keypoint_reward = -self._get_keypoint_dist()
         action_penalty = torch.norm(self.actions, p=2, dim=-1) * self.cfg_task.rl.action_penalty_scale
 
         self.rew_buf[:] = keypoint_reward * self.cfg_task.rl.keypoint_reward_scale \
                           - action_penalty * self.cfg_task.rl.action_penalty_scale
+        
+        for idx, is_straight in enumerate(bolt_straight):
+            if is_straight:
+                self.rew_buf[idx] += 300
+            else:
+                self.rew_buf[idx] += -100
 
         # In this policy, episode length is constant across all envs
         is_last_step = (self.progress_buf[0] == self.max_episode_length - 1)
 
         if is_last_step:
-            # Check if nut is close enough to bolt
+            # Check if nut is close enough to bolt AND bolt is straight up
             is_nut_close_to_bolt = self._check_nut_close_to_bolt()
-            self.rew_buf[:] += is_nut_close_to_bolt * self.cfg_task.rl.success_bonus
-            self.extras['successes'] = torch.mean(is_nut_close_to_bolt.float())
+            bool_is_nut_close_to_bolt = is_nut_close_to_bolt.to(torch.bool)
+            success = torch.logical_and(bool_is_nut_close_to_bolt, bolt_straight)
+            success = success.to(torch.long)
+            self.rew_buf[:] += success * self.cfg_task.rl.success_bonus
+            self.extras['successes'] = torch.mean(success.float())
 
     def reset_idx(self, env_ids):
         """Reset specified environments."""
