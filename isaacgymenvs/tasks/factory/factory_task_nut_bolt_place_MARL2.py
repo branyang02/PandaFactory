@@ -476,7 +476,10 @@ class FactoryTaskNutBoltPlace_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
 
         # Set DOF state
         multi_env_ids_int32 = self.franka_actor_ids_sim[env_ids].flatten()
+        second_multi_env_ids_int32 = self.second_franka_actor_ids_sim[env_ids].flatten()
+        multi_env_ids_int32 = torch.cat((multi_env_ids_int32, second_multi_env_ids_int32)).flatten()
         self.gym.set_dof_state_tensor_indexed(self.sim,
                                               gymtorch.unwrap_tensor(self.dof_state),
                                               gymtorch.unwrap_tensor(multi_env_ids_int32),
                                               len(multi_env_ids_int32))
+
