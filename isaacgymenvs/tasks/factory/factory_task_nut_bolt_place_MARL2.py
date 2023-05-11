@@ -342,7 +342,6 @@ class FactoryTaskNutBoltPlace_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
         self.gym.viewer_camera_look_at(self.viewer, None, cam_pos, cam_target)
 
     def _apply_actions_as_ctrl_targets(self, actions, ctrl_target_gripper_dof_pos, do_scale):
-        print("hererere")
         """Apply actions from policy as position/rotation targets."""
 
         # Interpret actions as target pos displacements and set pos target
@@ -482,6 +481,11 @@ class FactoryTaskNutBoltPlace_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
             + torch.tensor(self.cfg_task.randomize.fingertip_midpoint_pos_initial, device=self.device)
         self.ctrl_target_fingertip_midpoint_pos = self.ctrl_target_fingertip_midpoint_pos.unsqueeze(0).repeat(
             self.num_envs, 1)
+        
+        self.second_ctrl_target_fingertip_midpoint_pos = \
+            torch.tensor([0.0, 0.0, self.cfg_base.env.table_height], device=self.device) \
+            + torch.tensor(self.cfg_task.randomize.fingertip_midpoint_pos_initial, device=self.device)
+        self.second_ctrl_target_fingertip_midpoint_pos = self.second_ctrl_target_fingertip_midpoint_pos.unsqueeze(0).repeat(self.num_envs, 1)
 
         fingertip_midpoint_pos_noise = \
             2 * (torch.rand((self.num_envs, 3), dtype=torch.float32, device=self.device) - 0.5)  # [-1, 1]
@@ -489,8 +493,18 @@ class FactoryTaskNutBoltPlace_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
             torch.tensor(self.cfg_task.randomize.fingertip_midpoint_pos_noise, device=self.device))
         self.ctrl_target_fingertip_midpoint_pos += fingertip_midpoint_pos_noise
 
+        second_fingertip_midpoint_pos_noise = \
+            2 * (torch.rand((self.num_envs, 3), dtype=torch.float32, device=self.device) - 0.5)  # [-1, 1]
+        second_fingertip_midpoint_pos_noise = \
+            second_fingertip_midpoint_pos_noise @ torch.diag(torch.tensor(self.cfg_task.randomize.fingertip_midpoint_pos_noise,
+                                                                     device=self.device))
+        self.second_ctrl_target_fingertip_midpoint_pos += second_fingertip_midpoint_pos_noise
+
         # Set target rot
         ctrl_target_fingertip_midpoint_euler = torch.tensor(self.cfg_task.randomize.fingertip_midpoint_rot_initial,
+                                                            device=self.device).unsqueeze(0).repeat(self.num_envs, 1)
+
+        second_ctrl_target_fingertip_midpoint_euler = torch.tensor(self.cfg_task.randomize.fingertip_midpoint_rot_initial,
                                                             device=self.device).unsqueeze(0).repeat(self.num_envs, 1)
 
         fingertip_midpoint_rot_noise = \
@@ -502,6 +516,16 @@ class FactoryTaskNutBoltPlace_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
             ctrl_target_fingertip_midpoint_euler[:, 0],
             ctrl_target_fingertip_midpoint_euler[:, 1],
             ctrl_target_fingertip_midpoint_euler[:, 2])
+        
+        second_fingertip_midpoint_rot_noise = \
+            2 * (torch.rand((self.num_envs, 3), dtype=torch.float32, device=self.device) - 0.5)  # [-1, 1]
+        second_fingertip_midpoint_rot_noise = second_fingertip_midpoint_rot_noise @ torch.diag(
+            torch.tensor(self.cfg_task.randomize.fingertip_midpoint_rot_noise, device=self.device))
+        second_ctrl_target_fingertip_midpoint_euler += second_fingertip_midpoint_rot_noise
+        self.second_ctrl_target_fingertip_midpoint_quat = torch_utils.quat_from_euler_xyz(
+            second_ctrl_target_fingertip_midpoint_euler[:, 0],
+            second_ctrl_target_fingertip_midpoint_euler[:, 1],
+            second_ctrl_target_fingertip_midpoint_euler[:, 2])
 
         # Step sim and render
         for _ in range(sim_steps):
@@ -516,11 +540,25 @@ class FactoryTaskNutBoltPlace_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
                 ctrl_target_fingertip_midpoint_quat=self.ctrl_target_fingertip_midpoint_quat,
                 jacobian_type=self.cfg_ctrl['jacobian_type'],
                 rot_error_type='axis_angle')
+            
+            second_pos_error, second_axis_angle_error = fc.get_pose_error(
+                fingertip_midpoint_pos=self.second_fingertip_midpoint_pos,
+                fingertip_midpoint_quat=self.second_fingertip_midpoint_quat,
+                ctrl_target_fingertip_midpoint_pos=self.second_ctrl_target_fingertip_midpoint_pos,
+                ctrl_target_fingertip_midpoint_quat=self.second_ctrl_target_fingertip_midpoint_quat,
+                jacobian_type=self.cfg_ctrl['jacobian_type'],
+                rot_error_type='axis_angle')
 
             delta_hand_pose = torch.cat((pos_error, axis_angle_error), dim=-1)
-            actions = torch.zeros((self.num_envs, self.cfg_task.env.numActions), device=self.device)
+            actions = torch.zeros((self.num_envs, 12), device=self.device)  # numActions / 2 = 12
             actions[:, :6] = delta_hand_pose
 
+            second_delta_hand_pose = torch.cat((second_pos_error, second_axis_angle_error), dim=-1)
+            second_actions = torch.zeros((self.num_envs, 12), device=self.device)
+            second_actions[:, :6] = second_delta_hand_pose
+
+            actions = torch.cat((actions, second_actions), dim=-1)
+            
             self._apply_actions_as_ctrl_targets(actions=actions,
                                                 ctrl_target_gripper_dof_pos=0.0,
                                                 do_scale=False)
