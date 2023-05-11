@@ -170,6 +170,7 @@ class FactoryTaskNutBoltPlace_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
     def compute_reward(self):
         """Update reward and reset buffers."""
 
+        # TODO: Add reward for placing nut on bolt
         self._update_reset_buf()
         self._update_rew_buf()
 
