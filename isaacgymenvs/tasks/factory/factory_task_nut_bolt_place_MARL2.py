@@ -232,15 +232,17 @@ class FactoryTaskNutBoltPlace_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
         #                (self.nut_widths_max * 0.5) * 1.1,  # buffer on gripper DOF pos to prevent initial contact
         #                (self.nut_widths_max * 0.5) * 1.1),  # buffer on gripper DOF pos to prevent initial contact
         #               dim=-1)  # shape = (num_envs, num_dofs)
-    
+        second_franka_grip_strength = torch.full((128, 1), 0.160).to(self.device)
         self.dof_pos[env_ids] = \
             torch.cat(
                 (torch.tensor(self.cfg_task.randomize.franka_arm_initial_dof_pos, device=self.device).repeat((len(env_ids), 1)),
                 (self.nut_widths_max * 0.5) * 1.1,  # buffer on gripper DOF pos to prevent initial contact
                 (self.nut_widths_max * 0.5) * 1.1,
                 torch.tensor(self.cfg_task.randomize.franka_arm_initial_dof_pos, device=self.device).repeat((len(env_ids), 1)),
-                (self.nut_widths_max * 0.5) * 1.1,  # buffer on gripper DOF pos to prevent initial contact
-                (self.nut_widths_max * 0.5) * 1.1
+                # (second_franka_grip_strength * 0.5) * 1.1,  # buffer on gripper DOF pos to prevent initial contact
+                # (second_franka_grip_strength * 0.5) * 1.1
+                (self.bolt_widths * 0.5) * 1.1,
+                (self.bolt_widths * 0.5) * 1.1
                 ), 
             dim=-1)  # shape = (num_envs, num_dofs)
         
@@ -273,7 +275,7 @@ class FactoryTaskNutBoltPlace_MARL2(FactoryEnvNutBolt_MARL2, FactoryABCTask):
         # Randomize root state of bolt within second_gripper
         self.root_pos[env_ids, self.bolt_actor_id_env, 0] = 0.0
         self.root_pos[env_ids, self.bolt_actor_id_env, 1] = 0.5  # second_franka_pose.p.y = 0.5
-        self.root_pos[env_ids, self.bolt_actor_id_env, 2] = torch.tensor([0.57181 for _ in range(len(env_ids))]).to(self.device)
+        self.root_pos[env_ids, self.bolt_actor_id_env, 2] = torch.tensor([0.59181 for _ in range(len(env_ids))]).to(self.device)
 
 
 
