@@ -1,3 +1,15 @@
+# PandaFactory
+
+This repo contains the training script to train a centralized system of two Frankas to complete the `FactoryTaskNutBoltPick` task from the original repo https://github.com/isaac-sim/IsaacGymEnvs.
+
+![franka](https://github.com/branyang02/PandaFactory/assets/107154811/4fdd02d4-e9ae-42a9-973f-ee9a1bd6fb0f)
+
+
+Follow [IsaacGymEnvs](https://github.com/isaac-sim/IsaacGymEnvs) to complete installation, then run `isaacgymenvs/factory.sh` to train the scene.
+
+
+
+
 # Isaac Gym Benchmark Environments
 
 
